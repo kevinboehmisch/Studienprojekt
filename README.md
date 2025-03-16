@@ -102,11 +102,11 @@ If Python or Node.js is not installed, download them here:
 
 ---
 
-### Ollama Installation Guide
+## Ollama Installation Guide
 
 This guide provides step-by-step instructions to install Ollama, verify the installation, download a model, and test it.
 
-### 1. Install Ollama
+## 1. Install Ollama
 1. Download Ollama from [https://ollama.com/](https://ollama.com/) and install it.
 2. Verify the installation:
 
@@ -132,7 +132,7 @@ ollama pull llama3.2
 "ollama serve stop"
 ```
 
-### Backend Installation (FastAPI + Uvicorn)
+## Backend Installation (FastAPI + Uvicorn)
 
 1. Clone the repository:
 ```sh
@@ -185,7 +185,7 @@ The backend will be available at `http://127.0.0.1:8000`, with API documentation
 
 ---
 
-### Frontend Installation (Next.js)
+## Frontend Installation (Next.js)
 
 1. Navigate to the frontend directory:
 ```sh
