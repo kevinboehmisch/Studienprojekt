@@ -102,6 +102,36 @@ If Python or Node.js is not installed, download them here:
 
 ---
 
+### Ollama Installation Guide
+
+This guide provides step-by-step instructions to install Ollama, verify the installation, download a model, and test it.
+
+### 1. Install Ollama
+1. Download Ollama from [https://ollama.com/](https://ollama.com/) and install it.
+2. Verify the installation:
+
+```sh
+ollama --version
+```
+
+## 2. Download and Test a Model
+1. Pull the **Llama 3.2** model:
+```sh
+ollama pull llama3.2
+```
+3. Start the server:
+```sh
+"Explain quantum mechanics."
+```
+4. Run an interactive chat session:
+```sh
+"ollama run llama3.2"
+```
+5. Stop the server:
+```sh
+"ollama serve stop"
+```
+
 ### Backend Installation (FastAPI + Uvicorn)
 
 1. Clone the repository:
