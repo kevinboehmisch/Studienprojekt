@@ -176,8 +176,11 @@ DATABASE_URL=postgresql://user:password@localhost:5432/hausarbeit
 CHROMADB_PATH=./chroma_db
 OPENAI_API_KEY=your_api_key
 ```
-
-5. Start the backend:
+5. Navigate to the folder backend:
+```sh
+cd ../backend
+```
+5. Run the following command in the terminal:
 ```sh
 uvicorn main:app --reload
 ```
