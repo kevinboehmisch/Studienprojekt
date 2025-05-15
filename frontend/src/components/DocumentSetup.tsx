@@ -21,11 +21,11 @@ export default function DocumentSetup() {
       description: "Wählen Sie die gewünschte Länge Ihrer Arbeit in Seiten oder Wörtern",
       component: (
         <div className="flex items-center space-x-4">
-          <span className="w-24">Seitenzahl:</span>
-          <input 
+          <span className="w-24 text-gray-600">Seitenzahl:</span>
+          <input
             type="range" 
-            min="5" 
-            max="100" 
+            min="1" 
+            max="10" 
             value={documentConfig.pageCount} 
             onChange={(e) => setDocumentConfig({...documentConfig, pageCount: parseInt(e.target.value)})}
             className="w-full" 

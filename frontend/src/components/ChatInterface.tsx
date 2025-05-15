@@ -5,9 +5,15 @@ import { useRouter } from "next/navigation";
 import { sendMessageToLLM } from "../services/llmService";
 import ReactMarkdown from 'react-markdown';
 
+// Neuer Typ für Nachrichten
+type Message = {
+  content: string;
+  sender: 'user' | 'assistant';
+};
+
 export default function ChatInterface() {
   const router = useRouter();
-  const [messages, setMessages] = useState<string[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [documentConfig, setDocumentConfig] = useState({
     pageCount: 10,
@@ -22,19 +28,22 @@ export default function ChatInterface() {
       const configData = JSON.parse(storedConfig);
       setDocumentConfig(configData);
       const welcomeMessage = `Willkommen zu Ihrem ${configData.documentType}-Projekt! Wie kann ich Ihnen helfen?`;
-      setMessages([welcomeMessage]);
+      setMessages([{ content: welcomeMessage, sender: 'assistant' }]);
     }
   }, []);
 
   const handleSendMessage = async (userInput: string) => {
-    setMessages(prev => [...prev, `Sie: ${userInput}`]);
+    setMessages(prev => [...prev, { content: userInput, sender: 'user' }]);
     setIsLoading(true);
     try {
-      const response = await sendMessageToLLM(userInput);
-      setMessages(prev => [...prev, response]);
+      const response = await sendMessageToLLM(userInput, documentConfig);
+      setMessages(prev => [...prev, { content: response, sender: 'assistant' }]);
     } catch (error) {
       console.error("Fehler beim Abrufen der Antwort:", error);
-      setMessages(prev => [...prev, "Es ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut."]);
+      setMessages(prev => [...prev, { 
+        content: "Es ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut.", 
+        sender: 'assistant' 
+      }]);
     } finally {
       setIsLoading(false);
     }
@@ -42,7 +51,6 @@ export default function ChatInterface() {
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
-      {}
       <nav className="bg-white shadow-sm">
         <div className="max-w-5xl mx-auto px-4">
           <div className="flex justify-between h-16 items-center">
@@ -70,17 +78,18 @@ export default function ChatInterface() {
 
           <div className="flex-grow overflow-auto p-4">
             {messages.map((message, index) => (
-              <div key={index} className={`mb-4 ${message.startsWith('Sie:') ? 'text-right' : 'text-left'}`}>
+              <div key={index} className={`mb-4 ${message.sender === 'user' ? 'text-right' : 'text-left'}`}>
                 <div className={`inline-block rounded-lg px-4 py-2 max-w-[80%] ${
-                  message.startsWith('Sie:') ? 'bg-blue-100 text-black' : 'bg-gray-100 text-black'
+                  message.sender === 'user' ? 'bg-blue-100 text-black' : 'bg-gray-100 text-black'
                 }`}>
-                  {}
-                  {message.startsWith('Sie:') || message === `Willkommen zu Ihrem ${documentConfig.documentType}-Projekt! Wie kann ich Ihnen helfen?` || message === "Es ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut." ? (
-                    message 
+                  {message.sender === 'user' || 
+                   message.content === `Willkommen zu Ihrem ${documentConfig.documentType}-Projekt! Wie kann ich Ihnen helfen?` || 
+                   message.content === "Es ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut." ? (
+                    message.content 
                   ) : (
-                    <div className="prose prose-sm max-w-none text-black"> {/* Wende die Klassen hier an */}
+                    <div className="prose prose-sm max-w-none text-black">
                       <ReactMarkdown>
-                        {message}
+                        {message.content}
                       </ReactMarkdown>
                     </div>
                   )}
@@ -94,7 +103,6 @@ export default function ChatInterface() {
             )}
           </div>
 
-          {}
           <div className="border-t p-3">
             <form onSubmit={(e) => {
               e.preventDefault();
