@@ -1,3 +1,4 @@
+// src/components/ChatInterface.tsx
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
@@ -11,7 +12,12 @@ type Message = {
   sender: 'user' | 'assistant';
 };
 
-export default function ChatInterface() {
+// Neue Props für die Komponente
+interface ChatInterfaceProps {
+  asSidebar?: boolean;
+}
+
+export default function ChatInterface({ asSidebar = false }: ChatInterfaceProps) {
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -49,8 +55,74 @@ export default function ChatInterface() {
     }
   };
 
+  // Die Hauptkomponente wird angepasst, basierend darauf, ob sie als Sidebar verwendet wird
+  if (asSidebar) {
+    return (
+      <div className="flex flex-col h-full">
+        <div className="bg-gray-50 p-3 border-b">
+          <h2 className="font-medium text-black">Assistent</h2>
+          <p className="text-xs text-gray-700">
+            {documentConfig.documentType} • {documentConfig.citationStyle}
+          </p>
+        </div>
+
+        <div className="flex-grow overflow-auto p-2">
+          {messages.map((message, index) => (
+            <div key={index} className={`mb-2 ${message.sender === 'user' ? 'text-right' : 'text-left'}`}>
+              <div className={`inline-block rounded-lg px-3 py-1 max-w-[95%] text-sm ${
+                message.sender === 'user' ? 'bg-blue-100 text-black' : 'bg-gray-100 text-black'
+              }`}>
+                {message.sender === 'user' ? (
+                  message.content 
+                ) : (
+                  <div className="prose prose-sm max-w-none text-black">
+                    <ReactMarkdown>
+                      {message.content}
+                    </ReactMarkdown>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+          {isLoading && (
+            <div className="text-center text-black text-xs mt-2">
+              Assistent schreibt...
+            </div>
+          )}
+        </div>
+
+        <div className="border-t p-2">
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            const input = e.currentTarget.elements.namedItem('message') as HTMLInputElement;
+            if (input.value.trim()) {
+              handleSendMessage(input.value);
+              input.value = '';
+            }
+          }} className="flex">
+            <input
+              type="text"
+              name="message"
+              className="flex-grow border rounded-l px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 text-black"
+              placeholder="Frage stellen..."
+            />
+            <button
+              type="submit"
+              className="bg-blue-500 text-white px-2 py-1 rounded-r hover:bg-blue-600 text-sm"
+              disabled={isLoading}
+            >
+              →
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // Original Layout wenn nicht als Sidebar verwendet
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
+      {/* Rest des originalen Codes bleibt unverändert */}
       <nav className="bg-white shadow-sm">
         <div className="max-w-5xl mx-auto px-4">
           <div className="flex justify-between h-16 items-center">
