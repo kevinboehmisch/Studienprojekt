@@ -1,11 +1,11 @@
 // src/components/editor/Tiptap.tsx
 'use client'
 
-import { useEditor, EditorContent } from '@tiptap/react'
+import { useEditor, EditorContent, Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import React from 'react'
-import EditorBubbleMenu from './EditorBubbleMenu'
-import EditorToolbar from './EditorToolbar'
+import EditorBubbleMenu from './EditorBubbleMenu' // Stelle sicher, dass dies der korrekte Pfad ist
+import EditorToolbar from './EditorToolbar'     // Stelle sicher, dass dies der korrekte Pfad ist
 
 const Tiptap: React.FC = () => {
   const editor = useEditor({
@@ -18,7 +18,7 @@ const Tiptap: React.FC = () => {
         Willkommen zu Ihrem Text-Editor! Wählen Sie etwas Text aus, um das Formatierungsmenü anzuzeigen.
       </p>
       <p>
-        Sie können Inhalte hinzufügen, bearbeiten und formatieren. Das System wird Sie bei Ihrer akademischen Arbeit unterstützen.
+        Markieren Sie Text und klicken Sie auf den "Umschreiben"-Button (Stift-Icon) im erscheinenden Menü, um ihn mit KI zu bearbeiten.
       </p>
     `,
   })
@@ -31,7 +31,12 @@ const Tiptap: React.FC = () => {
     <div className="w-full h-full flex flex-col">
       <EditorToolbar editor={editor} />
       
-      <EditorBubbleMenu editor={editor} />
+      {/* 
+        Fehlerbehebung: tippyOptions hier entfernen, da sie 
+        bereits in EditorBubbleMenu.tsx für die Tiptap <BubbleMenu> Komponente
+        gesetzt werden.
+      */}
+      <EditorBubbleMenu editor={editor} /> 
       
       <EditorContent 
         editor={editor} 

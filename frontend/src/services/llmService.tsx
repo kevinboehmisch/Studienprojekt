@@ -103,4 +103,58 @@ export async function sendMessageToLLM( // Behalte den Namen, den dein ChatInter
         console.error("Aufbereitete Fehlermeldung:", errorMessage);
         return `Fehler: ${errorMessage}`;
     }
+
+    
+}
+
+// --- NEU: Für den simplen Google AI Endpunkt ---
+interface SimpleGenerateRequestPayloadFE {
+    prompt: string;
+    model_name?: string; // z.B. "gemini-1.5-flash-latest"
+}
+
+interface SimpleGenerateResponseFE {
+    generated_text: string;
+}
+
+export async function generateSimpleText(
+    prompt: string,
+    modelName: string = "gemini-1.5-flash-latest" // Standardmodell
+): Promise<string> { // Gibt direkt den generierten Text oder eine Fehlermeldung zurück
+    const requestStartTime = Date.now();
+    console.log(`FRONTEND_TIMING_SIMPLE_GEN: [${new Date(requestStartTime).toLocaleTimeString()}] Sende Request für simplen Prompt: "${prompt.substring(0, 50)}..."`);
+
+    const payload: SimpleGenerateRequestPayloadFE = {
+        prompt: prompt,
+        model_name: modelName
+    };
+
+    try {
+        const response = await axios.post<SimpleGenerateResponseFE>(
+            "http://127.0.0.1:8000/ai/generate-simple", // URL zum NEUEN Endpunkt
+            payload,
+            { headers: { "Content-Type": "application/json" } }
+        );
+        const requestEndTime = Date.now();
+        const durationMs = requestEndTime - requestStartTime;
+        console.log(`FRONTEND_TIMING_SIMPLE_GEN: [${new Date(requestEndTime).toLocaleTimeString()}] Antwort erhalten. Dauer: ${durationMs}ms`);
+        console.log("Antwort vom /ai/generate-simple Endpunkt:", response.data);
+
+        return response.data.generated_text || "Kein Text von der KI erhalten.";
+
+    } catch (error) {
+        const requestEndTimeError = Date.now();
+        const durationMsError = requestEndTimeError - requestStartTime;
+        console.error(`FRONTEND_TIMING_SIMPLE_GEN: [${new Date(requestEndTimeError).toLocaleTimeString()}] Fehler nach ${durationMsError}ms:`, error);
+        
+        let errorMessage = "Fehler bei der einfachen KI-Anfrage.";
+        if (axios.isAxiosError(error) && error.response) {
+            errorMessage = error.response.data.detail || "Serverfehler bei /ai/generate-simple";
+        } else if (error instanceof Error) {
+            errorMessage = error.message;
+        }
+        
+        console.error("Aufbereitete Fehlermeldung (simple KI):", errorMessage);
+        return `Fehler: ${errorMessage}`; // Gibt Fehler als String zurück
+    }
 }
