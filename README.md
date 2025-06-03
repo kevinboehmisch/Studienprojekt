@@ -1,7 +1,9 @@
 # Hausarbeit Agent
 
 ## Project Overview
+
 Hausarbeit Agent is a **Full-Stack Web Application** developed with **Next.js (Frontend) & FastAPI (Backend)**. The goal is to **automate the creation of academic papers** by:
+
 - Generating **chapter suggestions**.
 - Utilizing a **RAG-enhanced AI model (DeepSeek/OpenAI + ChromaDB)** to retrieve relevant sources.
 - Iteratively refining the paper to produce up to **120 pages**.
@@ -10,6 +12,7 @@ Hausarbeit Agent is a **Full-Stack Web Application** developed with **Next.js (F
 ---
 
 ## Features
+
 - AI-generated **chapter structure**
 - **Retrieval-Augmented Generation (RAG)** for document reference management
 - **Iterative AI-generated text**
@@ -19,6 +22,7 @@ Hausarbeit Agent is a **Full-Stack Web Application** developed with **Next.js (F
 ---
 
 ## Technology Stack
+
 | Component | Technology |
 |------------|-------------|
 | **Frontend** | Next.js, TypeScript, TailwindCSS |
@@ -30,6 +34,7 @@ Hausarbeit Agent is a **Full-Stack Web Application** developed with **Next.js (F
 ---
 
 ## Project Structure
+
 ```
 /hausarbeit-agent
 │── /backend           # FastAPI Backend
@@ -51,22 +56,26 @@ Hausarbeit Agent is a **Full-Stack Web Application** developed with **Next.js (F
 ```
 
 ---
+
 ## API Documentation
 
 FastAPI provides an interactive API documentation interface.
 
 ### 📌 Accessing the API Docs
+
 Once the backend is running, you can view the API documentation at:
 
 - **Swagger UI:** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) (Default)
 - **ReDoc UI:** [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc) (Alternative)
 
 ### 📌 How to Use
+
 - Explore available API endpoints.
 - Send test requests directly from the browser.
 - View request and response schemas.
 
 ### 📌 Customizing the API Docs
+
 You can modify the FastAPI documentation title and description in `main.py`:
 
 ```python
@@ -82,6 +91,7 @@ For further customization, refer to the FastAPI documentation.
 ## Installation Guide
 
 ### Prerequisites
+
 Ensure the following tools are installed on your system:
 
 - **Python 3.9+** (For the backend)
@@ -90,6 +100,7 @@ Ensure the following tools are installed on your system:
 - **PostgreSQL** (For database storage, if used)
 
 Verify installations:
+
 ```sh
 python --version  # Should display Python 3.9+
 node -v           # Should display Node.js 18+
@@ -97,6 +108,7 @@ git --version     # Should display Git version
 ```
 
 If Python or Node.js is not installed, download them here:
+
 - [Download Python](https://www.python.org/downloads/)
 - [Download Node.js](https://nodejs.org/)
 
@@ -107,6 +119,7 @@ If Python or Node.js is not installed, download them here:
 This guide provides step-by-step instructions to install Ollama, verify the installation, download a model, and test it.
 
 ## 1. Install Ollama
+
 1. Download Ollama from [https://ollama.com/](https://ollama.com/) and install it.
 2. Verify the installation:
 
@@ -115,19 +128,27 @@ ollama --version
 ```
 
 ## 2. Download and Test a Model
+
 1. Pull the **Llama 3.2** model:
+
 ```sh
 ollama pull llama3.2
 ```
+
 3. Start the server:
+
 ```sh
 "Explain quantum mechanics."
 ```
+
 4. Run an interactive chat session:
+
 ```sh
 "ollama run llama3.2"
 ```
+
 5. Stop the server:
+
 ```sh
 "ollama serve stop"
 ```
@@ -135,30 +156,39 @@ ollama pull llama3.2
 ## Backend Installation (FastAPI + Uvicorn)
 
 1. Clone the repository:
+
 ```sh
 git clone https://github.com/YOUR_USERNAME/hausarbeit-agent.git
 cd hausarbeit-agent/backend
 ```
 
 2. Create and activate a virtual environment:
+
 ```sh
 python -m venv venv
 ```
+
 - **Windows (PowerShell)**
+
   ```sh
-  venv\Scripts\activate
+  .venv\Scripts\activate
   ```
+
 - **Mac/Linux**
+
   ```sh
   source venv/bin/activate
   ```
 
 3. Install dependencies:
+
 ```sh
 pip install -r requirements.txt
+pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu128
 ```
 
 If `requirements.txt` does not exist, create it with the following:
+
 ```txt
 fastapi
 uvicorn
@@ -171,19 +201,24 @@ langchain
 
 4. Set environment variables:
 Create a `.env` file with:
+
 ```ini
-DATABASE_URL=postgresql://user:password@localhost:5432/hausarbeit
-CHROMADB_PATH=./chroma_db
-OPENAI_API_KEY=your_api_key
+DATABASE_URL=postgresql://postgres:password@localhost:5433/paperpilot_db
+
 ```
+
 5. Navigate to the folder backend:
+
 ```sh
 cd ../backend
 ```
+
 5. Run the following command in the terminal:
+
 ```sh
 uvicorn main:app --reload
 ```
+
 The backend will be available at `http://127.0.0.1:8000`, with API documentation at `http://127.0.0.1:8000/docs`.
 
 ---
@@ -191,19 +226,23 @@ The backend will be available at `http://127.0.0.1:8000`, with API documentation
 ## Frontend Installation (Next.js)
 
 1. Navigate to the frontend directory:
+
 ```sh
 cd ../frontend
 ```
 
 2. Install dependencies:
+
 ```sh
 npm install
 ```
 
 3. Start the frontend:
+
 ```sh
 npm run dev
 ```
+
 The frontend will be available at `http://localhost:3000`.
 
 ---
@@ -211,6 +250,7 @@ The frontend will be available at `http://localhost:3000`.
 ## Dependency Overview
 
 ### Python Dependencies (Backend)
+
 | Library      | Purpose |
 |-------------|------------------------------------------------------------|
 | **FastAPI** | The core web framework handling API requests asynchronously. |
@@ -221,6 +261,7 @@ The frontend will be available at `http://localhost:3000`.
 | **LangChain** | Framework for managing interactions with LLMs (DeepSeek, OpenAI). |
 
 ### JavaScript Dependencies (Frontend)
+
 | Library      | Purpose |
 |-------------|----------------------------------------------|
 | **Next.js** | React-based framework for server-side rendering. |
@@ -230,13 +271,73 @@ The frontend will be available at `http://localhost:3000`.
 ---
 
 ## Additional Notes
+
 - **If new dependencies are added, update this document accordingly.**
 - For a complete package list, refer to `requirements.txt` (backend) or `package.json` (frontend).
 
 ---
 
 ## Team & Contact
+
 For contributions or questions, refer to the team section in the documentation or contact us through GitHub.
 
 
+# Marker
 
+Tool um PDFs in Markdown umzuwandeln
+
+cuda installieren von nvidia
+
+pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+
+pip install marker
+
+
+- cuda notwendig
+
+- pytorch notwendig
+
+# searxng
+
+container runterladen
+
+# crawl4ai
+
+container runterladen
+
+# postgres vectordatenbank
+
+
+# virtuelle umgebung
+
+.venv ordner erstellen
+
+.\venv\Scripts\activate
+
+
+ablauf:
+
+zuerst marker output zum laufen bringen
+bilderpfade korrekt
+in vector db speichern (extra funktion mit der man alles reinspeichern kann!)
+
+dann auch noch websites mit searxng
+dann auch quellen mit arxiv
+dann auch mit crawl4ai scrapen
+
+dann in vector db speichern (gleiche funktion!)
+
+
+dann möglichkeit aus vector db rauszuziehen
+
+falls es zu fehlern kommt zuerst diese torch sachen installieren und danach marker-pdf[full]
+
+pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+pip install "marker-pdf[full]"
+
+
+# datenbank setup:
+
+docker compose up -d
+psql -h localhost -p 5433 -U postgres -d paperpilot_db
+CREATE EXTENSION IF NOT EXISTS vector;

@@ -1,0 +1,263 @@
+# app/services/pdf_processing_service.py
+import os
+import io
+import base64
+import tempfile
+import uuid
+import re # Für Regex-Suche nach Seitenmarkern
+from typing import Dict, Any, Optional, List
+from PIL import Image, UnidentifiedImageError
+import fitz
+
+from marker.converters.pdf import PdfConverter
+from marker.output import text_from_rendered
+from app.core.config import TEMP_DIR, EXTRACTED_IMAGES_DIR
+# NEUE Schemas importieren
+from app.schemas.processing_schemas import PdfProcessingResult, ImageInfo, TextChunk
+# app/services/pdf_processing_service.py
+import re # Stelle sicher, dass re importiert ist
+
+# ... (andere Imports bleiben gleich) ...
+
+def simple_markdown_splitter(markdown_text: str, max_chunk_chars: int = 1500) -> List[Dict[str, Any]]:
+    chunks_with_pages = []
+    current_page = None # Beginnt ohne bekannte Seite
+    
+    # Regex für explizite <span id="page-X-Y"> Tags
+    page_span_pattern = re.compile(r'<span id="page-(\d+)-[^"]*"></span>', re.IGNORECASE)
+    # NEU: Regex für Bild-Tags, die Seitenzahlen im Namen haben könnten, z.B. ![](_page_X_...)
+    # Diese Regex ist etwas allgemeiner gefasst, um verschiedene Bildnamen-Muster abzudecken.
+    # Es sucht nach "_page_" gefolgt von Ziffern.
+    image_page_pattern = re.compile(r'!\[.*?\]\([^_]*_page_(\d+)_.*?\)', re.IGNORECASE)
+
+    processed_text = markdown_text.replace('\r\n', '\n')
+    processed_text = re.sub(r'\n{3,}', '\n\n', processed_text)
+    lines = processed_text.split('\n')
+    
+    current_chunk_content = []
+    current_chunk_char_count = 0
+
+    for line_idx, line_content in enumerate(lines):
+        original_line_for_page_detection = line_content # Behalte die Originialzeile für die Seitenerkennung
+        new_page_detected_in_line = None
+
+        # 1. Prüfe auf explizite <span> Seitenmarker
+        span_match = page_span_pattern.search(original_line_for_page_detection)
+        if span_match:
+            page_num_str = span_match.group(1)
+            try:
+                new_page_detected_in_line = int(page_num_str) + 1 # 1-indiziert
+                # Entferne den Span-Tag aus der Zeile für den Chunk-Inhalt
+                line_content = page_span_pattern.sub("", line_content).strip()
+            except ValueError:
+                print(f"WARN_SPLITTER: Konnte Seitenzahl aus Span-Tag '{page_num_str}' nicht parsen.")
+        
+        # 2. Wenn kein Span-Tag, prüfe auf Bild-Tags mit Seitenzahlen
+        if new_page_detected_in_line is None: # Nur prüfen, wenn nicht schon durch Span-Tag gefunden
+            # Finde alle Bild-Seiten-Tags in der aktuellen Zeile
+            # Es könnten mehrere Bilder auf einer Zeile sein, nimm die höchste gefundene Seitenzahl als Referenz
+            # oder die erste. Für Einfachheit nehmen wir die erste.
+            img_match = image_page_pattern.search(original_line_for_page_detection)
+            if img_match:
+                page_num_str = img_match.group(1)
+                try:
+                    new_page_detected_in_line = int(page_num_str) + 1 # 1-indiziert
+                    # Wir entfernen den Bild-Tag hier nicht, er soll im Markdown bleiben
+                except ValueError:
+                    print(f"WARN_SPLITTER: Konnte Seitenzahl aus Bild-Tag '{page_num_str}' nicht parsen.")
+
+        # Aktualisiere current_page, wenn eine neue Seite in dieser Zeile erkannt wurde
+        if new_page_detected_in_line is not None:
+            if current_page != new_page_detected_in_line:
+                # Seite hat gewechselt ODER erste Seite wurde erkannt
+                if current_chunk_content: # Speichere den vorherigen Chunk, wenn er Inhalt hat
+                    chunks_with_pages.append({
+                        "content": "\n".join(current_chunk_content).strip(),
+                        "page_number": current_page # Seite des vorherigen Chunks
+                    })
+                    current_chunk_content = []
+                    current_chunk_char_count = 0
+                current_page = new_page_detected_in_line # Setze die neue aktuelle Seite
+
+        # Füge die (potenziell modifizierte) Zeile zum aktuellen Chunk hinzu
+        # Selbst wenn die Zeile leer ist (nach Entfernen eines Span-Tags),
+        # wird sie hinzugefügt, wenn der Chunk leer ist, um den Kontext zu wahren.
+        if line_content.strip() or not current_chunk_content:
+            if current_chunk_char_count + len(line_content) + 1 > max_chunk_chars and current_chunk_content:
+                # Aktueller Chunk ist voll, speichere ihn mit der aktuellen Seite
+                chunks_with_pages.append({
+                    "content": "\n".join(current_chunk_content).strip(),
+                    "page_number": current_page
+                })
+                current_chunk_content = [line_content] # Beginne neuen Chunk mit aktueller Zeile
+                current_chunk_char_count = len(line_content)
+            else:
+                current_chunk_content.append(line_content)
+                current_chunk_char_count += len(line_content) + 1
+
+            # Splitte an (potenziellen) Absatzenden (Doppel-Zeilenumbruch)
+            # Nur wenn der Chunk nicht leer ist und die aktuelle Zeile leer war (also ein \n\n)
+            if not line_content.strip() and len(current_chunk_content) > 1 and current_chunk_content[-2].strip() != "":
+                content_to_check = "\n".join(current_chunk_content).strip()
+                # Nur signifikante Chunks speichern (verhindert viele kleine durch Formatierung)
+                if len(content_to_check) > 30: # Mindestlänge (anpassbar)
+                    chunks_with_pages.append({
+                        "content": content_to_check,
+                        "page_number": current_page
+                    })
+                    current_chunk_content = []
+                    current_chunk_char_count = 0
+    
+    # Füge den letzten verbleibenden Chunk hinzu
+    if current_chunk_content:
+        content_to_check = "\n".join(current_chunk_content).strip()
+        if content_to_check: # Nur hinzufügen, wenn er nicht leer ist
+            chunks_with_pages.append({
+                "content": content_to_check,
+                "page_number": current_page
+            })
+            
+    final_chunks = [chunk for chunk in chunks_with_pages if chunk["content"]]
+    print(f"LOG_SPLITTER: Markdown in {len(final_chunks)} Chunks aufgeteilt.")
+    return final_chunks
+
+# Der Rest deines PdfProcessingService bleibt gleich.
+# Stelle sicher, dass diese simple_markdown_splitter Funktion
+# in app/services/pdf_processing_service.py definiert ist oder korrekt importiert wird.
+class PdfProcessingService:
+    # ... (dein __init__ und _save_image_and_get_info bleiben gleich) ...
+    def __init__(self, artifact_dict: Dict, config: Dict):
+        self.converter = PdfConverter(artifact_dict=artifact_dict, config=config)
+        print("LOG_INIT: PdfProcessingService initialisiert.")
+
+    def _save_image_and_get_info(self, img_data_value: Any, original_img_filename_from_marker: str, doc_id_folder_name: str) -> Optional[ImageInfo]:
+        actual_img_basename = os.path.basename(original_img_filename_from_marker)
+        doc_specific_image_dir = os.path.join(EXTRACTED_IMAGES_DIR, doc_id_folder_name)
+        try:
+            os.makedirs(doc_specific_image_dir, exist_ok=True)
+        except OSError as e:
+            print(f"ERROR_SAVE_IMG: Konnte Bildordner '{doc_specific_image_dir}' nicht erstellen: {e}")
+            return None
+        image_save_path = os.path.join(doc_specific_image_dir, actual_img_basename)
+        saved_successfully = False
+        pil_image_for_info = None
+        try:
+            if isinstance(img_data_value, Image.Image):
+                pil_image_for_info = img_data_value
+                img_data_value.save(image_save_path)
+                saved_successfully = True
+            elif isinstance(img_data_value, bytes):
+                image = Image.open(io.BytesIO(img_data_value))
+                image.save(image_save_path)
+                pil_image_for_info = image
+                saved_successfully = True
+            elif isinstance(img_data_value, str):
+                temp_img_data_str = img_data_value
+                if ',' in temp_img_data_str: temp_img_data_str = temp_img_data_str.split(',', 1)[1]
+                missing_padding = len(temp_img_data_str) % 4
+                if missing_padding: temp_img_data_str += '=' * (4 - missing_padding)
+                decoded_image_data = base64.b64decode(temp_img_data_str)
+                image = Image.open(io.BytesIO(decoded_image_data))
+                image.save(image_save_path)
+                pil_image_for_info = image
+                saved_successfully = True
+            else:
+                print(f"WARN_SAVE_IMG: Unbekannter Datentyp für Bild '{actual_img_basename}'. Typ: {type(img_data_value)}")
+                return None
+            if saved_successfully:
+                content_type = None
+                if pil_image_for_info and pil_image_for_info.format:
+                    content_type = Image.MIME.get(pil_image_for_info.format.upper())
+                return ImageInfo(
+                    filename=actual_img_basename,
+                    content_type=content_type,
+                    file_path=os.path.join(doc_id_folder_name, actual_img_basename)
+                )
+        except Exception as e:
+            print(f"  ERROR_SAVE_IMG: Fehler beim Speichern von Bild '{actual_img_basename}': {e}")
+        return None
+
+    def process_pdf_data(self, pdf_bytes: bytes, original_doc_filename: str) -> PdfProcessingResult:
+        base_fn_no_ext, _ = os.path.splitext(original_doc_filename)
+        safe_doc_name = "".join(c if c.isalnum() or c in ['_','-'] else '_' for c in base_fn_no_ext)
+        unique_suffix = uuid.uuid4().hex[:6]
+        doc_id_folder_name = f"{safe_doc_name}_{unique_suffix}"
+
+        tmp_fd, temp_pdf_path = tempfile.mkstemp(suffix=".pdf", dir=TEMP_DIR, prefix=f"{original_doc_filename}_")
+        os.close(tmp_fd)
+        
+        processed_images_info_list: List[ImageInfo] = []
+        extracted_text_chunks: List[TextChunk] = []
+        actual_metadata: Dict[str, Any] = {
+            "source_document": original_doc_filename,
+            "processed_document_id": doc_id_folder_name
+        }
+        images_dict_from_marker: Optional[Dict[str, Any]] = None
+        debug_msg: str = ""
+        
+        print(f"LOG_PROCESS_PDF: Starte Verarbeitung für '{original_doc_filename}'")
+
+        try:
+            try:
+                pdf_doc_fitz = fitz.open(stream=pdf_bytes, filetype="pdf")
+                pdf_meta_raw = pdf_doc_fitz.metadata
+                pdf_doc_fitz.close()
+                if pdf_meta_raw:
+                    if pdf_meta_raw.get("title"): actual_metadata["title_from_pdf_meta"] = pdf_meta_raw["title"]
+                    if pdf_meta_raw.get("author"): actual_metadata["author_from_pdf_meta"] = pdf_meta_raw["author"]
+            except Exception as e_meta:
+                print(f"WARN_PROCESS_PDF: PyMuPDF Metadatenextraktion fehlgeschlagen: {e_meta}")
+
+            with open(temp_pdf_path, "wb") as f:
+                f.write(pdf_bytes)
+
+            print(f"LOG_PROCESS_PDF: Rufe self.converter() für '{original_doc_filename}' auf...")
+            rendered_doc_obj = self.converter(temp_pdf_path)
+
+            markdown_full_output: str = ""
+            meta_from_marker_tfr: Optional[Any] = None
+            if rendered_doc_obj:
+                markdown_full_output, meta_from_marker_tfr, images_dict_from_marker = text_from_rendered(rendered_doc_obj)
+                print(f"LOG_PROCESS_PDF: text_from_rendered() - Vollständiger Markdown ({len(markdown_full_output)} Z.), Meta (Typ: {type(meta_from_marker_tfr)}), Bilder (Anzahl: {len(images_dict_from_marker) if images_dict_from_marker else 0})")
+
+                if isinstance(meta_from_marker_tfr, dict):
+                    actual_metadata.update(meta_from_marker_tfr)
+                elif meta_from_marker_tfr is not None:
+                    actual_metadata["marker_tfr_meta"] = str(meta_from_marker_tfr)
+
+                raw_chunks = simple_markdown_splitter(markdown_full_output)
+                for raw_chunk in raw_chunks:
+                    extracted_text_chunks.append(
+                        TextChunk(content=raw_chunk["content"], page_number=raw_chunk["page_number"])
+                    )
+            else:
+                print("WARN_PROCESS_PDF: self.converter(temp_pdf_path) hat kein Objekt zurückgegeben.")
+
+            if images_dict_from_marker:
+                for img_key, img_data in images_dict_from_marker.items():
+                    image_info = self._save_image_and_get_info(img_data, img_key, doc_id_folder_name)
+                    if image_info:
+                        processed_images_info_list.append(image_info)
+            
+            debug_msg = f"'{original_doc_filename}' erfolgreich verarbeitet. Chunks: {len(extracted_text_chunks)}, Bilder: {len(processed_images_info_list)} gesp."
+            print(f"LOG_PROCESS_PDF: {debug_msg}")
+
+        except Exception as e_main:
+            debug_msg = f"Fehler bei Verarbeitung von '{original_doc_filename}': {e_main}"
+            print(f"ERROR_PROCESS_PDF: {debug_msg}")
+            import traceback 
+            traceback.print_exc()
+            actual_metadata["error_processing_pdf"] = str(e_main)
+        finally:
+            if os.path.exists(temp_pdf_path):
+                try:
+                    os.remove(temp_pdf_path)
+                except OSError as e_rm:
+                    print(f"WARN_PROCESS_PDF: Konnte temp. Datei {temp_pdf_path} nicht löschen: {e_rm}")
+        
+        return PdfProcessingResult(
+            text_chunks=extracted_text_chunks,
+            images=processed_images_info_list,
+            metadata=actual_metadata,
+            debug_message=debug_msg
+        )
