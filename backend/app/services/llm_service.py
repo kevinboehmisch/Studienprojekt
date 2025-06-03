@@ -5,6 +5,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from dotenv import load_dotenv
+import time
 
 load_dotenv()
 
@@ -60,7 +61,7 @@ async def generate_text_with_llm(
         return "Fehler: Sprachmodell nicht verfügbar."
 
     print(f"LOG_LLM: Generiere Text mit Provider '{provider}'. Prompt-Template (Auszug): {prompt_template_str[:100]}...")
-    
+    print(f"LOG_LLM_TIMING: [{time.strftime('%H:%M:%S')}] Generiere Text mit Provider '{provider}'.")
     try:
         prompt = ChatPromptTemplate.from_template(prompt_template_str)
         output_parser = StrOutputParser()
@@ -73,8 +74,14 @@ async def generate_text_with_llm(
         generated_text = await chain.ainvoke(context_data)
         
         print(f"LOG_LLM: Text erfolgreich generiert (Auszug): {generated_text[:100]}...")
+        invoke_start_time = time.time()
+        generated_text = await chain.ainvoke(context_data)
+        invoke_duration = time.time() - invoke_start_time
+        print(f"LOG_LLM_TIMING: [{time.strftime('%H:%M:%S')}] LLM-Aufruf (chain.ainvoke) beendet. Dauer: {invoke_duration:.2f}s.")
         return generated_text
     except Exception as e:
         print(f"ERROR_LLM: Fehler bei der Textgenerierung mit '{provider}': {e}")
+        invoke_duration_error = time.time() - invoke_start_time if 'invoke_start_time' in locals() else -1
+        print(f"ERROR_LLM_TIMING: LLM Fehler nach {invoke_duration_error:.2f}s: {e}")
         import traceback; traceback.print_exc()
         return f"Fehler bei der Textgenerierung: {str(e)}"

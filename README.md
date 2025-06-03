@@ -311,9 +311,12 @@ container runterladen
 # virtuelle umgebung
 
 .venv ordner erstellen
-
+python -m venv .venv  
 .\venv\Scripts\activate
 
+cd backend
+pip install -r requirements.txt
+pip install -r requirements2.txt --extra-index-url https://download.pytorch.org/whl/cu128
 
 ablauf:
 

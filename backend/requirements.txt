@@ -8,16 +8,12 @@ pymupdf
 python-multipart
 langchain-text-splitters
 httpx
-torch 
-torchvision 
-torchaudio 
-marker
-marker-pdf[full]
+
 
 sqlalchemy 
 psycopg2-binary 
 asyncpg
 pgvector
 langchain-community 
-langchain-google-ai
 langchain-google-genai
+marker-pdf[full]

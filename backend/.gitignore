@@ -3,5 +3,7 @@
 # dependencies
 __pycache__/
 
+.env
+
 
 
