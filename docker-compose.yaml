@@ -107,7 +107,7 @@ services:
     networks:
       - searxng
     ports:
-      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:8081:8081"
     volumes:
       - ./searxng-docker/searxng:/etc/searxng:rw
     environment:
