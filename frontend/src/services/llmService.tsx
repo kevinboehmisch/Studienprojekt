@@ -159,6 +159,43 @@ export async function generateSimpleText(
     }
 }
 
+// --- NEU: Funktion zum Erweitern von Text ---
+// Diese Funktion nutzt generateSimpleText mit einem spezifischen Prompt
+export async function extendTextWithLLM(
+    textToExtend: string,
+    modelName: string = "gemini-1.5-flash-latest" // Erlaube Modellübergabe
+): Promise<string> { // Gibt den erweiterten Text oder eine Fehlermeldung zurück
+    if (!textToExtend.trim()) {
+        console.warn("extendTextWithLLM: Leerer Text zum Erweitern erhalten.");
+        return "Fehler: Kein Text zum Erweitern angegeben.";
+    }
+
+    const prompt = `Basierend auf dem folgenden Text, schreibe bitte eine passende und kohärente Fortsetzung.
+Gib NUR die neu generierte Fortsetzung zurück, ohne den Originaltext zu wiederholen und ohne zusätzliche Kommentare, Einleitungen oder Formatierungen wie Markdown.
+Der neu generierte Text sollte direkt an den Originaltext anschließen.
+
+Originaltext:
+"${textToExtend}"
+
+Fortsetzung:`;
+
+    console.log(`extendTextWithLLM: Rufe generateSimpleText auf mit Prompt für Text: "${textToExtend.substring(0, 30)}..."`);
+    
+    // Rufe die vorhandene generateSimpleText Funktion auf
+    const extendedText = await generateSimpleText(prompt, modelName);
+
+    // generateSimpleText gibt bereits eine Fehlermeldung als String zurück,
+    // also können wir das Ergebnis direkt weitergeben.
+    // Du könntest hier noch spezifischere Fehlerbehandlung hinzufügen, falls nötig.
+    if (extendedText.startsWith("Fehler:")) {
+        console.error("Fehler von generateSimpleText beim Erweitern des Textes:", extendedText);
+    } else if (!extendedText.trim()) {
+        return "Keine Erweiterung von der KI erhalten.";
+    }
+    
+    return extendedText; // Gibt entweder den Text oder die Fehlermeldung von generateSimpleText zurück
+}
+
 
 // --- NEU: Für den /retrieval/find-similar Endpunkt ---
 
@@ -228,3 +265,5 @@ export async function findSimilarSources(queryText: string, limitResults: number
         throw new Error(`Fehler bei der Quellensuche: ${errorMessage}`);
     }
 }
+
+export type { SourceDetailFE, SimpleGenerateRequestPayloadFE, SimpleGenerateResponseFE };
