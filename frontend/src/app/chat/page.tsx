@@ -1,7 +1,7 @@
 // src/app/chat/page.tsx
 "use client";
-import ChatInterface from "../../components/ChatInterface";
-import Tiptap from "../../components/Tiptap";
+import ChatInterface from "../../components/chat/ChatInterface";
+import Tiptap from "../../components/editor/Tiptap";
 
 export default function ChatPage() {
   return (

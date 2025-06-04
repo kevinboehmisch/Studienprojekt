@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { sendMessageToLLM } from "../services/llmService";
+import { sendMessageToLLM } from "../../services/llmService";
 import ReactMarkdown from 'react-markdown';
 
 // Neuer Typ für Nachrichten

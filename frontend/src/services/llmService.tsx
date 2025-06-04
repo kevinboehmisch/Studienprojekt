@@ -158,3 +158,73 @@ export async function generateSimpleText(
         return `Fehler: ${errorMessage}`; // Gibt Fehler als String zurück
     }
 }
+
+
+// --- NEU: Für den /retrieval/find-similar Endpunkt ---
+
+export interface SourceChunk {
+    chunk_content: string;
+    page_number: number | null; // Kann null sein, falls nicht ermittelbar
+    document_title: string | null;
+    document_author: string | null;
+    original_filename: string;
+    distance: number;
+    publication_year: number | null;
+    // WICHTIG: Wir brauchen eine eindeutige ID für den Chunk!
+    // Wenn dein Backend diese nicht direkt liefert, müssen wir überlegen, wie wir sie bekommen.
+    // Idealerweise sollte der Backend-Endpunkt eine `chunk_id` (oder ähnliches) zurückgeben.
+    // Fürs Erste nehmen wir an, es gibt sie oder wir können sie aus den Daten ableiten.
+    chunk_id: string; // Annahme: Diese ID kommt vom Backend oder wird dort generiert.
+}
+
+export async function findSimilarSources(queryText: string, limitResults: number = 5): Promise<SourceChunk[]> {
+    const requestStartTime = Date.now();
+    console.log(`FRONTEND_TIMING_RETRIEVAL: [${new Date(requestStartTime).toLocaleTimeString()}] Sende GET Request für Quellensuche: "${queryText.substring(0, 50)}..."`);
+
+    try {
+        const response = await axios.get<SourceChunk[]>( // <--- GEÄNDERT ZU GET
+            `http://127.0.0.1:8000/retrieval/find-similar`,
+            { // Der zweite Parameter bei axios.get ist das config-Objekt
+                params: { // Hier kommen die URL-Parameter hin
+                    query: queryText,
+                    limit: limitResults
+                },
+                headers: { "Content-Type": "application/json" } // Kann bleiben, schadet nicht
+            }
+        );
+        const requestEndTime = Date.now();
+        const durationMs = requestEndTime - requestStartTime;
+        console.log(`FRONTEND_TIMING_RETRIEVAL: [${new Date(requestEndTime).toLocaleTimeString()}] Antwort erhalten. Dauer: ${durationMs}ms`);
+        console.log("Antwort vom /retrieval/find-similar Endpunkt (GET):", response.data);
+
+        // Deine Mapping-Logik für chunk_id etc. bleibt gleich
+        return response.data.map((chunk, index) => ({
+            ...chunk,
+            // Provisorische ID, wenn nicht vom Backend geliefert. Besser wäre eine echte ID.
+            chunk_id: chunk.chunk_id || `${chunk.original_filename}_p${chunk.page_number}_idx${index}`
+        }));
+
+    } catch (error) {
+        const requestEndTimeError = Date.now();
+        const durationMsError = requestEndTimeError - requestStartTime;
+        console.error(`FRONTEND_TIMING_RETRIEVAL: [${new Date(requestEndTimeError).toLocaleTimeString()}] Fehler nach ${durationMsError}ms:`, error);
+        
+        let errorMessage = "Fehler bei der Quellensuche.";
+        if (axios.isAxiosError(error)) {
+            if (error.response) {
+                console.error("Axios error response:", error.response);
+                errorMessage = error.response.data.detail || `Serverfehler bei /retrieval/find-similar (Status: ${error.response.status})`;
+            } else if (error.request) {
+                console.error("Axios error request (no response):", error.request);
+                errorMessage = "Keine Antwort vom Server erhalten bei /retrieval/find-similar.";
+            } else {
+                errorMessage = error.message;
+            }
+        } else if (error instanceof Error) {
+            errorMessage = error.message;
+        }
+        
+        console.error("Aufbereitete Fehlermeldung (Quellensuche):", errorMessage);
+        throw new Error(`Fehler bei der Quellensuche: ${errorMessage}`);
+    }
+}
