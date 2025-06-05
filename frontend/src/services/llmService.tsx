@@ -110,7 +110,7 @@ export async function sendMessageToLLM( // Behalte den Namen, den dein ChatInter
 // --- NEU: Für den simplen Google AI Endpunkt ---
 interface SimpleGenerateRequestPayloadFE {
     prompt: string;
-    model_name?: string; // z.B. "gemini-1.5-flash-latest"
+    model_name?: string;
 }
 
 interface SimpleGenerateResponseFE {

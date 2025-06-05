@@ -3,37 +3,148 @@
 
 import { useEditor, EditorContent, Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
-import React, { useState, useCallback } from 'react' // useEffect, useRef nicht mehr zwingend hier benötigt
+import React, { useState, useCallback, useEffect, useRef } from 'react'
 import EditorBubbleMenu from './EditorBubbleMenu'
-// ActivePromptType wird hier nicht mehr direkt benötigt, wenn die Logik in den Menüs selbst liegt
-// import { ActivePromptType } from './EditorBubbleMenu'
 import EditorToolbar from './EditorToolbar'
 import Citation from './extensions/CitationNode'
 import EditorContextMenu from './EditorContextMenu';
+import { generateTextFromQuery } from "@/services/llmService";
+import Heading from '@tiptap/extension-heading'; // Import für die Basis-Heading-Node
+
+// Importiere Typen und Funktionen aus outlineUtils
 import {
-  generateTextFromQuery,
-  // GeneratedTextResponseFE, // Wird nur im Handler verwendet
-  // ... andere Service-Funktionen, die du hier brauchst
-} from "@/services/llmService";
+  OutlineItem,
+  NumberedOutlineItem,
+  generateNumberedDisplayOutline,
+} from '../../utils/outlineUtils'; // Pfad prüfen und ggf. anpassen!
 
 interface MenuPosition {
   x: number;
   y: number;
 }
 
-const Tiptap: React.FC = () => {
+interface TiptapProps {
+  onOutlineUpdate?: (outline: OutlineItem[]) => void;
+  initialOutline?: OutlineItem[];
+}
+
+// Erweiterte Heading-Node, um Gliederungs-IDs und Level zu speichern
+const CustomHeading = Heading.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(), // Behält Standard-Attribute wie 'level' (für H1, H2 etc.)
+      'data-outline-id': {
+        default: null,
+        parseHTML: element => element.getAttribute('data-outline-id'),
+        renderHTML: attributes => {
+          if (!attributes['data-outline-id']) {
+            return {};
+          }
+          return { 'data-outline-id': attributes['data-outline-id'] };
+        },
+        keepOnSplit: false,
+      },
+      'data-outline-level': { // Das Gliederungs-Level (1 für Hauptkapitel, 2 für Unterkapitel usw.)
+        default: null,
+        parseHTML: element => {
+          const level = element.getAttribute('data-outline-level');
+          return level ? parseInt(level, 10) : null;
+        },
+        renderHTML: attributes => {
+          if (attributes['data-outline-level'] === null || attributes['data-outline-level'] === undefined) {
+            return {};
+          }
+          return { 'data-outline-level': attributes['data-outline-level'] };
+        },
+        keepOnSplit: false,
+      },
+    };
+  },
+});
+
+
+const Tiptap: React.FC<TiptapProps> = ({ onOutlineUpdate, initialOutline }) => {
   const [contextMenuState, setContextMenuState] = useState<{
     isVisible: boolean;
     position: MenuPosition | null;
   }>({ isVisible: false, position: null });
 
-  const [isGeneratingTextFromContext, setIsGeneratingTextFromContext] = useState(false); // Für den Ladezustand
+  const [isGeneratingTextFromContext, setIsGeneratingTextFromContext] = useState(false);
+  const lastOutlineRef = useRef<string>(JSON.stringify(initialOutline || []));
+
+  // Funktion zum Konvertieren der Gliederung in HTML für den Editor
+  const convertOutlineToHTML = useCallback((outlineItems: OutlineItem[]): string => {
+    let html = '<h1>PaperPilot Text Editor</h1>\n'; // Ein allgemeiner Titel für das Dokument
+    
+    const numberedOutline = generateNumberedDisplayOutline(outlineItems);
+
+    const processItems = (items: NumberedOutlineItem[]) => {
+      items.forEach(item => {
+        // Gliederungslevel 1 -> H2, Gliederungslevel 2 -> H3, Gliederungslevel 3 -> H4
+        const editorHeadingLevel = item.level + 1;
+        // Sicherstellen, dass wir die konfigurierten Levels nicht überschreiten (hier max. H4)
+        const safeEditorHeadingLevel = Math.min(editorHeadingLevel, 4);
+
+        html += `<h${safeEditorHeadingLevel} 
+                    data-outline-id="${item.id}" 
+                    data-outline-level="${item.level}"
+                 >${item.numberedTitle}</h${safeEditorHeadingLevel}>\n`;
+        // Füge einen leeren Absatz nach jeder Überschrift ein, damit der Benutzer dort schreiben kann.
+        html += "<p></p>\n"; 
+        
+        if (item.children && item.children.length > 0) {
+          processItems(item.children as NumberedOutlineItem[]);
+        }
+      });
+    };
+    
+    processItems(numberedOutline);
+    return html;
+  }, []);
+
+  // Initialer Content für den Editor
+  const getInitialContent = useCallback((): string => {
+    if (initialOutline && initialOutline.length > 0) {
+      console.log("Tiptap: Initializing with initialOutline from props:", initialOutline);
+      return convertOutlineToHTML(initialOutline);
+    }
+    
+    if (typeof window !== 'undefined') {
+      const savedConfig = localStorage.getItem('documentConfig');
+      if (savedConfig) {
+        try {
+          const config = JSON.parse(savedConfig);
+          if (config.outline && config.outline.length > 0) {
+            console.log("Tiptap: Initializing with outline from localStorage:", config.outline);
+            return convertOutlineToHTML(config.outline);
+          }
+        } catch (e) {
+          console.error('Tiptap: Fehler beim Laden der Gliederung aus localStorage:', e);
+        }
+      }
+    }
+    
+    console.log("Tiptap: Initializing with default content.");
+    return `
+      <h1>PaperPilot Text Editor</h1>
+      <p>
+        Willkommen zu Ihrem Text-Editor! Wählen Sie etwas Text aus, um das Formatierungsmenü anzuzeigen.
+      </p>
+      <p>
+        Rechtsklicken Sie in den Editor, um das Menü für Aktionen wie "Text generieren" zu öffnen.
+      </p>
+    `;
+  }, [initialOutline, convertOutlineToHTML]);
 
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      StarterKit.configure({
+        heading: false, // Standard-Heading von StarterKit deaktivieren
+      }),
+      CustomHeading.configure({ levels: [1, 2, 3, 4] }), // H1, H2, H3, H4 erlaubt
       Citation,
     ],
+    immediatelyRender: false,
     editorProps: {
       handleDOMEvents: {
         contextmenu: (view, event) => {
@@ -59,16 +170,110 @@ const Tiptap: React.FC = () => {
         },
       },
     },
-    content: `
-      <h2>PaperPilot Text Editor</h2>
-      <p>
-        Willkommen zu Ihrem Text-Editor! Wählen Sie etwas Text aus, um das Formatierungsmenü anzuzeigen.
-      </p>
-      <p>
-        Rechtsklicken Sie in den Editor, um das Menü für Aktionen wie "Text generieren" zu öffnen.
-      </p>
-    `,
+    content: getInitialContent(),
+    onUpdate: ({ editor }) => {
+      if (onOutlineUpdate) {
+        const headings = extractHeadingsFromEditor(editor);
+        const headingsString = JSON.stringify(headings);
+        
+        if (headingsString !== lastOutlineRef.current) {
+          console.log("Tiptap: Outline changed in editor. Calling onOutlineUpdate.", headings);
+          lastOutlineRef.current = headingsString;
+          onOutlineUpdate(headings);
+        }
+      }
+    },
   });
+
+  // Effekt, um auf Änderungen von initialOutline (von außen, z.B. SideMenu) zu reagieren
+  useEffect(() => {
+    if (editor && initialOutline) { // initialOutline kann auch ein leeres Array sein
+      const newInitialOutlineString = JSON.stringify(initialOutline);
+      // Nur aktualisieren, wenn sich die extern übergebene Gliederung von dem unterscheidet,
+      // was der Editor zuletzt gemeldet hat (um Schleifen zu vermeiden).
+      if (newInitialOutlineString !== lastOutlineRef.current) {
+        console.log("Tiptap: External outline change detected. Updating editor content.", initialOutline);
+        const html = convertOutlineToHTML(initialOutline);
+        // setContent löst ein 'update'-Event aus.
+        editor.commands.setContent(html, true); // true -> 'update'-Event auslösen
+        // Nach dem Setzen des Inhalts wird `onUpdate` getriggert,
+        // welches dann `lastOutlineRef.current` auf `newInitialOutlineString` setzt.
+      }
+    }
+  }, [initialOutline, editor, convertOutlineToHTML]);
+
+
+  // Funktion zum Extrahieren der Überschriften aus dem Editor in die OutlineItem-Struktur
+  const extractHeadingsFromEditor = (editor: Editor): OutlineItem[] => {
+    const extractedOutline: OutlineItem[] = [];
+    const parentStack: OutlineItem[] = [];
+
+    editor.state.doc.forEach(node => {
+      if (node.type.name === CustomHeading.name) {
+        const editorHLevel = node.attrs.level; // H-Level im Editor (1 für H1, 2 für H2 etc.)
+        
+        // Ignoriere den globalen Dokumenttitel "PaperPilot Text Editor" (H1 ohne Gliederungsattribute)
+        if (editorHLevel === 1 && !node.attrs['data-outline-id']) {
+           return; 
+        }
+
+        const outlineIdFromAttr = node.attrs['data-outline-id'] as string | null;
+        const itemLevelFromAttr = node.attrs['data-outline-level'] as number | null;
+        
+        // Bestimme das Gliederungslevel. Wenn data-outline-level gesetzt ist, nutze das.
+        // Sonst: H2 -> Level 1, H3 -> Level 2 etc.
+        let currentItemLevel = itemLevelFromAttr !== null ? itemLevelFromAttr : (editorHLevel ? editorHLevel - 1 : 1);
+        
+        if (currentItemLevel <= 0) { // Ungültiges Level
+          console.warn("Tiptap: extractHeadings - Skipping heading with invalid level:", node.textContent);
+          return;
+        }
+        // Maximales Gliederungslevel (z.B. 3, wenn H4 das tiefste ist)
+        currentItemLevel = Math.min(currentItemLevel, 3);
+
+
+        const fullText = node.textContent || '';
+        // Entferne die Nummerierung (z.B. "1.1. ") vom Anfang des Titels
+        const title = fullText.replace(/^[\d\.]+\s*/, '').trim();
+
+        const newItem: OutlineItem = {
+          id: outlineIdFromAttr || `editor-item-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+          title: title,
+          level: currentItemLevel,
+          children: [],
+        };
+
+        // Hierarchie aufbauen
+        while (parentStack.length > 0 && parentStack[parentStack.length - 1].level >= newItem.level) {
+          parentStack.pop();
+        }
+
+        if (newItem.level === 1) {
+          extractedOutline.push(newItem);
+        } else {
+          const parent = parentStack[parentStack.length - 1];
+          if (parent && parent.level === newItem.level - 1) {
+            parent.children = parent.children || [];
+            parent.children.push(newItem);
+          } else {
+            console.warn("Tiptap: extractHeadings - Orphaned heading, adding to root or last valid parent with adjusted level:", newItem, "Parent stack:", JSON.parse(JSON.stringify(parentStack)));
+            // Fallback: Versuche, an den letzten Parent anzuhängen und Level anzupassen, oder als L1
+            if (parentStack.length > 0) {
+                const lastKnownParent = parentStack[parentStack.length - 1];
+                newItem.level = lastKnownParent.level + 1;
+                lastKnownParent.children = lastKnownParent.children || [];
+                lastKnownParent.children.push(newItem);
+            } else {
+                 newItem.level = 1; 
+                 extractedOutline.push(newItem);
+            }
+          }
+        }
+        parentStack.push(newItem);
+      }
+    });
+    return extractedOutline;
+  };
 
   const closeContextMenu = useCallback(() => {
     setContextMenuState({ isVisible: false, position: null });
@@ -79,8 +284,8 @@ const Tiptap: React.FC = () => {
     closeContextMenu();
     setIsGeneratingTextFromContext(true);
     const NUM_SOURCES = 3;
-    const editorHTML = editor.getHTML();
-    const effectivePrompt = userPromptFromContextMenu?.trim() || "Schreibe einen passenden wissenschaftlichen Textabschnitt...";
+    const editorHTML = editor.getHTML(); // Hier evtl. nur einen Teil des Dokuments (z.B. aktuelles Kapitel) nehmen
+    const effectivePrompt = userPromptFromContextMenu?.trim() || "Schreibe einen passenden wissenschaftlichen Textabschnitt basierend auf dem aktuellen Kontext...";
     try {
       const response = await generateTextFromQuery(editorHTML, effectivePrompt, NUM_SOURCES);
       if (response.generated_text) {
@@ -90,29 +295,26 @@ const Tiptap: React.FC = () => {
         let lastIndex = 0; let match;
         while ((match = citationRegex.exec(response.generated_text)) !== null) {
           const textBefore = response.generated_text.substring(lastIndex, match.index);
-          if (textBefore) contentToInsert.push(textBefore);
+          if (textBefore) contentToInsert.push({ type: 'text', text: textBefore });
           const chunkId = match[1]; const sourceData = sourceMap.get(chunkId);
           if (sourceData && editor.schema.nodes.citation) {
-            const attrs = { chunkId, author: sourceData.author, year: sourceData.year, page: sourceData.page, title: sourceData.title, displayText: `(${sourceData.author||'A'}, ${sourceData.year||'Y'})`};
-            const node = editor.schema.nodes.citation.create(attrs);
-            if(node) contentToInsert.push(node.toJSON()); else contentToInsert.push(match[0]);
-          } else contentToInsert.push(match[0]);
+            const attrs = { chunkId, author: sourceData.author, year: sourceData.year, page: sourceData.page, title: sourceData.title, displayText: `(${sourceData.author||'Autor'}, ${sourceData.year||'Jahr'})`};
+            contentToInsert.push({ type: 'citation', attrs });
+          } else contentToInsert.push({ type: 'text', text: match[0] }); // Fallback: Zitation als Text einfügen
           lastIndex = citationRegex.lastIndex;
         }
         const textAfter = response.generated_text.substring(lastIndex);
-        if (textAfter) contentToInsert.push(textAfter);
+        if (textAfter) contentToInsert.push({ type: 'text', text: textAfter });
+
         if (contentToInsert.length > 0) {
-          const currentPos = editor.state.selection.to;
-          let chain = editor.chain().focus().setTextSelection(currentPos);
-          for (const item of contentToInsert) { chain = chain.insertContent(item); }
-          chain.run();
+          editor.chain().focus().insertContent(contentToInsert).run();
         }
       } else { alert("Kein Text von der KI generiert (Kontextmenü)."); }
     } catch (e: any) { alert(`Fehler bei Textgenerierung (Kontextmenü): ${e?.message || 'Unbekannt'}`); }
     finally { setIsGeneratingTextFromContext(false); }
   };
 
-  // Platzhalter-Handler für RewriteText aus dem Kontextmenü
+
   const handleContextMenuRewriteText = (prompt?: string) => {
     if (!editor) return;
     closeContextMenu();
@@ -120,14 +322,10 @@ const Tiptap: React.FC = () => {
         alert("Bitte Text für 'Umschreiben' markieren oder eine Anweisung im Kontextmenü-Prompt geben.");
         return;
     }
-    // Hier würde die Logik für das Umschreiben stehen, die generateSimpleText aufruft.
-    // Du kannst die Logik aus handleRewrite in EditorContextMenu.tsx hierher kopieren oder
-    // (besser) eine gemeinsame Service-Funktion erstellen.
-    alert(`Aktion 'Umschreiben' aus Kontextmenü getriggert. Prompt: ${prompt || '(kein Prompt)'}. Markierter Text: ${editor.state.selection.empty ? 'Nichts' : 'Ja'}`);
-    // Beispiel: handleAction(() => actualRewriteLogic(editor, prompt))
+    // Hier Logik für Umschreiben implementieren
+    alert(`Aktion 'Umschreiben' aus Kontextmenü getriggert. Prompt: ${prompt || '(kein Prompt)'}. Markierter Text: ${editor.state.selection.empty ? 'Nichts' : editor.state.doc.textBetween(editor.state.selection.from, editor.state.selection.to, ' ')}`);
   };
 
-  // Platzhalter-Handler für FindSources aus dem Kontextmenü
   const handleContextMenuFindSources = () => {
     if (!editor) return;
     closeContextMenu();
@@ -135,23 +333,21 @@ const Tiptap: React.FC = () => {
         alert("Bitte Text für 'Quellen suchen' markieren.");
         return;
     }
-    // Hier würde die Logik für die Quellensuche stehen (API-Call, Popover anzeigen).
-    // Da das SourceSelectionPopover vom EditorBubbleMenu gesteuert wird, ist dies komplexer.
-    alert("Aktion 'Quellen suchen' aus Kontextmenü getriggert. (Logik zum Öffnen des Popovers fehlt noch)");
+    // Hier Logik für Quellen suchen implementieren
+    alert("Aktion 'Quellen suchen' aus Kontextmenü getriggert. Markierter Text: " + editor.state.doc.textBetween(editor.state.selection.from, editor.state.selection.to, ' '));
   };
 
-
   if (!editor) {
-    return null;
+    return <div className="w-full h-full flex items-center justify-center"><p>Editor wird geladen...</p></div>;
   }
 
   return (
-    <div className="w-full h-full flex flex-col relative">
+    <div className="w-full h-full flex flex-col relative bg-white">
       <EditorToolbar editor={editor} />
       <EditorBubbleMenu editor={editor} />
       <EditorContent
         editor={editor}
-        className="flex-grow border border-gray-300 rounded-md p-4 overflow-y-auto prose prose-sm max-w-none focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+        className="flex-grow border border-gray-300 rounded-md p-6 overflow-y-auto prose prose-sm sm:prose lg:prose-lg xl:prose-xl max-w-none focus:outline-none"
       />
       {contextMenuState.isVisible && contextMenuState.position && editor && (
         <EditorContextMenu
@@ -160,8 +356,9 @@ const Tiptap: React.FC = () => {
           isVisible={contextMenuState.isVisible}
           onClose={closeContextMenu}
           onGenerateText={handleContextMenuGenerateText}
-          onRewriteText={handleContextMenuRewriteText} // Fehlende Prop hinzugefügt
-          onFindSources={handleContextMenuFindSources}   // Fehlende Prop hinzugefügt
+          onRewriteText={handleContextMenuRewriteText}
+          onFindSources={handleContextMenuFindSources}
+          isGenerating={isGeneratingTextFromContext}
         />
       )}
     </div>
