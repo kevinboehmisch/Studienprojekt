@@ -1,8 +1,15 @@
 // src/components/editor/EditorContextMenu.tsx
-'use client'
+"use client";
 
-import React from 'react';
-import { Sparkles, Edit3, BookMarked, Scissors, Copy, ClipboardPaste } from 'lucide-react'; // Beispiel-Icons
+import React from "react";
+import {
+  Sparkles,
+  Edit3,
+  BookMarked,
+  Scissors,
+  Copy,
+  ClipboardPaste,
+} from "lucide-react"; // Beispiel-Icons
 
 interface EditorContextMenuProps {
   isVisible: boolean;
@@ -11,8 +18,8 @@ interface EditorContextMenuProps {
   onClose: () => void;
   // Handler für Aktionen, die du im Menü anbieten willst
   onGenerateText: (prompt?: string) => void; // Kann optional einen Prompt annehmen
-  onRewriteText: (prompt?: string) => void;  // Muss hier definiert sein
-  onFindSources: () => void;              // Für "Quellen suchen"
+  onRewriteText: (prompt?: string) => void; // Muss hier definiert sein
+  onFindSources: () => void; // Für "Quellen suchen"
   // Füge hier weitere Standard-Kontextmenü-Aktionen hinzu, falls gewünscht
 }
 
@@ -69,7 +76,7 @@ const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
             </button>
           </li>
         )}
-         {canFindSources && ( // Nur anzeigen, wenn Text markiert ist
+        {canFindSources && ( // Nur anzeigen, wenn Text markiert ist
           <li>
             <button
               onClick={() => handleAction(onFindSources)}
@@ -82,29 +89,47 @@ const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
         )}
 
         {/* Standard-Editor-Aktionen (Beispiele) */}
-        {(canRewrite || !editor.state.selection.empty) && <hr className="my-1 border-gray-200" />}
+        {(canRewrite || !editor.state.selection.empty) && (
+          <hr className="my-1 border-gray-200" />
+        )}
 
         {!editor.state.selection.empty && (
-            <li>
+          <li>
             <button
-                onClick={() => handleAction(() => editor.chain().focus().run() /* TODO: editor.commands.cut() ist nicht Standard */ )}
-                className="w-full flex items-center px-3 py-1.5 text-gray-700 hover:bg-gray-100 rounded-md"
-                disabled // Tiptap hat kein eingebautes "cut". Müsste man manuell implementieren (copy + delete)
+              onClick={() =>
+                handleAction(
+                  () =>
+                    editor
+                      .chain()
+                      .focus()
+                      .run() /* TODO: editor.commands.cut() ist nicht Standard */
+                )
+              }
+              className="w-full flex items-center px-3 py-1.5 text-gray-700 hover:bg-gray-100 rounded-md"
+              disabled // Tiptap hat kein eingebautes "cut". Müsste man manuell implementieren (copy + delete)
             >
-                <Scissors size={16} className="mr-2" /> Ausschneiden (TODO)
+              <Scissors size={16} className="mr-2" /> Ausschneiden (TODO)
             </button>
-            </li>
+          </li>
         )}
         {!editor.state.selection.empty && (
-            <li>
+          <li>
             <button
-                onClick={() => handleAction(() => editor.chain().focus().run() /* TODO: editor.commands.copy() */ )}
-                className="w-full flex items-center px-3 py-1.5 text-gray-700 hover:bg-gray-100 rounded-md"
-                disabled // Tiptap hat kein eingebautes "copy". Müsste man manuell implementieren.
+              onClick={() =>
+                handleAction(
+                  () =>
+                    editor
+                      .chain()
+                      .focus()
+                      .run() /* TODO: editor.commands.copy() */
+                )
+              }
+              className="w-full flex items-center px-3 py-1.5 text-gray-700 hover:bg-gray-100 rounded-md"
+              disabled // Tiptap hat kein eingebautes "copy". Müsste man manuell implementieren.
             >
-                <Copy size={16} className="mr-2" /> Kopieren (TODO)
+              <Copy size={16} className="mr-2" /> Kopieren (TODO)
             </button>
-            </li>
+          </li>
         )}
         {/* <li>
           <button

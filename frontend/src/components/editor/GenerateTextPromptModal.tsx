@@ -1,7 +1,7 @@
 // src/components/editor/GenerateTextPromptModal.tsx
-'use client'
+"use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 
 interface GenerateTextPromptModalProps {
   initialPrompt: string;
@@ -32,10 +32,13 @@ const GenerateTextPromptModal: React.FC<GenerateTextPromptModalProps> = ({
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg">
-        <h2 className="text-xl font-semibold mb-4 text-gray-800">Text generieren</h2>
+        <h2 className="text-xl font-semibold mb-4 text-gray-800">
+          Text generieren
+        </h2>
         <form onSubmit={handleSubmit}>
           <p className="text-sm text-gray-600 mb-2">
-            Passe die Anweisung an oder gib eine neue ein, um Text basierend auf dem Kontext und den Quellen zu generieren:
+            Passe die Anweisung an oder gib eine neue ein, um Text basierend auf
+            dem Kontext und den Quellen zu generieren:
           </p>
           <textarea
             value={prompt}
@@ -60,11 +63,29 @@ const GenerateTextPromptModal: React.FC<GenerateTextPromptModalProps> = ({
               className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? (
-                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                <svg
+                  className="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
                 </svg>
-              ) : 'Generieren'}
+              ) : (
+                "Generieren"
+              )}
             </button>
           </div>
         </form>

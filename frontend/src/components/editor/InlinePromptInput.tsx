@@ -1,8 +1,8 @@
 // src/components/editor/InlinePromptInput.tsx
-'use client'
+"use client";
 
-import React, { useState, useEffect, useRef } from 'react';
-import { Loader2, Send, X } from 'lucide-react';
+import React, { useState, useEffect, useRef } from "react";
+import { Loader2, Send, X } from "lucide-react";
 
 interface InlinePromptInputProps {
   isVisible: boolean;
@@ -48,11 +48,11 @@ const InlinePromptInput: React.FC<InlinePromptInputProps> = ({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
     }
-    if (e.key === 'Escape') {
+    if (e.key === "Escape") {
       onClose();
     }
   };
@@ -84,13 +84,17 @@ const InlinePromptInput: React.FC<InlinePromptInputProps> = ({
           type="button"
           className={`p-1 rounded ${
             !prompt.trim() || isLoading
-              ? 'text-gray-400 cursor-not-allowed'
-              : 'text-blue-600 hover:text-blue-800'
+              ? "text-gray-400 cursor-not-allowed"
+              : "text-blue-600 hover:text-blue-800"
           }`}
           title="Senden (Enter)"
           disabled={!prompt.trim() || isLoading}
         >
-          {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+          {isLoading ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : (
+            <Send size={16} />
+          )}
         </button>
       </div>
     </div>
