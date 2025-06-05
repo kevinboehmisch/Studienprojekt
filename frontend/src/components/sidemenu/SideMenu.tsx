@@ -16,7 +16,8 @@ import {
   deleteOutlineItemRecursively
 } from '../../utils/outlineUtils'; // Pfad prüfen und ggf. anpassen
 
-// Typen für die Daten
+import SourcesPanel from './SourcesPanel'; // Importiere das SourcesPanel
+// Typen für die Daten (vereinfacht für das Beispiel)
 interface ProjectFile {
   id: string;
   name: string;
@@ -24,13 +25,6 @@ interface ProjectFile {
   active?: boolean;
 }
 
-interface SourceItem {
-  id: string;
-  displayCitation: string;
-  fullCitation?: string;
-  previewImageUrl?: string;
-  pdfUrl?: string;
-}
 
 type ActivePanelView = 'projects' | 'outline' | 'sources' | null;
 
@@ -239,29 +233,9 @@ const SideMenu: React.FC<SideMenuProps> = ({ outline, onOutlineChange, onOutline
             </button>
           </div>
         );
-      case 'sources': /* ... unverändert ... */ return (
-          <div className="p-3 space-y-2">
-            {sourceItems.map(source => (
-              <div key={source.id} title={source.fullCitation} className="flex items-start p-2 rounded-md cursor-pointer hover:bg-gray-100 bg-gray-50 border border-gray-200">
-                {source.previewImageUrl && (
-                  <img src={source.previewImageUrl} alt="Quelle" className="w-10 h-12 object-cover rounded-sm mr-3 flex-shrink-0" />
-                )}
-                {!source.previewImageUrl && (
-                    <div className="w-10 h-12 bg-indigo-100 rounded-sm mr-3 flex-shrink-0 flex items-center justify-center">
-                        <BookOpen size={20} className="text-indigo-500"/>
-                    </div>
-                )}
-                <div className="overflow-hidden">
-                  <p className="text-xs font-semibold text-indigo-700 truncate">{source.displayCitation}</p>
-                  <p className="text-xs text-gray-600 truncate mt-0.5">{source.fullCitation?.substring(0, 60)}...</p>
-                </div>
-              </div>
-            ))}
-            <button className="w-full mt-2 flex items-center justify-center py-2 px-3 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-colors">
-              <Plus size={16} className="mr-1.5" /> Quelle hinzufügen
-            </button>
-          </div>
-        );
+       case 'sources':
+        // HIER WIRD DIE NEUE KOMPONENTE EINGEFÜGT
+        return <SourcesPanel />;
       default:
         return null;
     }

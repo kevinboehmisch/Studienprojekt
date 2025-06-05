@@ -1,6 +1,6 @@
 # app/db/crud/crud_document.py
 import uuid
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload # Für Eager Loading von Relationships, falls später benötigt
@@ -18,6 +18,27 @@ async def get_document_by_processed_id(db: AsyncSession, processed_document_id: 
         select(Document).filter(Document.processed_document_id == processed_document_id)
     )
     return result.scalars().first()
+
+async def get_documents(db: AsyncSession, skip: int = 0, limit: int = 100) -> List[Document]:
+    """Ruft eine Liste von Dokumenten ab, mit Paginierung."""
+    result = await db.execute(
+        select(Document)
+        .order_by(Document.original_filename) # Beispiel-Sortierung
+        .offset(skip)
+        .limit(limit)
+    )
+    return result.scalars().all()
+
+async def delete_document(db: AsyncSession, document_id: uuid.UUID) -> Optional[Document]:
+    """Löscht ein Dokument anhand seiner ID und gibt das gelöschte Dokument zurück (oder None)."""
+    # Hole das Dokument, um es zurückgeben zu können (optional, alternativ nur True/False)
+    db_document = await get_document_by_id(db, document_id) # get_document_by_id statt get_document
+    if db_document:
+        await db.delete(db_document)
+        # Das Commit erfolgt im API-Endpunkt-Handler, um Transaktionskontrolle zu behalten.
+        # await db.commit()
+        return db_document
+    return None
 
 async def create_document(db: AsyncSession, *, # Stern erzwingt Keyword-Argumente
                           original_filename: str, 
