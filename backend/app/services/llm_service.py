@@ -85,3 +85,62 @@ async def generate_text_with_llm(
         print(f"ERROR_LLM_TIMING: LLM Fehler nach {invoke_duration_error:.2f}s: {e}")
         import traceback; traceback.print_exc()
         return f"Fehler bei der Textgenerierung: {str(e)}"
+
+
+# --- Funktion für arXiv Suche ---
+ARXIV_QUERY_PROMPT_TEMPLATE = """
+Basierend auf dem folgenden Kontext und der Nutzeranfrage, formuliere EINE prägnante Suchanfrage für die wissenschaftliche Datenbank arXiv.
+Die Suchanfrage sollte die arXiv Such-Syntax verwenden (z.B. 'ti:"Titel Keywords"', 'au:"Autor Name"', 'abs:"Abstract Keywords"', 'cat:cs.AI', boolesche Operatoren AND, OR, ANDNOT).
+Konzentriere dich auf die wichtigsten Schlüsselbegriffe und kombiniere sie sinnvoll. Gib NUR die Suchanfrage zurück, ohne zusätzliche Erklärungen.
+
+Vorhandener Kontext/Text:
+{context_text}
+
+Spezifische Nutzeranfrage:
+{user_prompt}
+
+Formulierte arXiv Suchanfrage:
+""".strip()
+
+ARXIV_ABSTRACT_SUMMARY_PROMPT_TEMPLATE = """
+Fasse diesen wissenschaftlichen Abstract in 1-2 prägnanten Sätzen für eine schnelle Übersicht zusammen.
+Betone das Hauptergebnis, die Hauptmethode oder die Kernfrage des Papers. Gib NUR die Zusammenfassung zurück.
+
+Abstract:
+{abstract}
+
+Zusammenfassung (1-2 Sätze):
+""".strip()
+
+async def generate_arxiv_search_query(context_text: Optional[str], user_prompt: Optional[str]) -> str:
+    context_data = {
+        "context_text": context_text or "Kein spezifischer Kontext vorhanden.",
+        "user_prompt": user_prompt or "Allgemeine wissenschaftliche Forschung."
+    }
+    print(f"LOG_LLM_ARXIV: Generiere arXiv Suchanfrage. Kontext: {str(context_data)[:200]}...")
+    query = await generate_text_with_llm(ARXIV_QUERY_PROMPT_TEMPLATE, context_data)
+    if query and ("Fehler:" in query or not query.strip()): # Einfache Fehlerprüfung
+        print(f"WARN_LLM_ARXIV: LLM gab fehlerhafte Suchanfrage zurück: {query}")
+        # Fallback-Query, falls LLM fehlschlägt oder Unsinn liefert
+        return "all:\"research paper\"" if not user_prompt else f"all:\"{user_prompt.strip()}\""
+    
+    # Einfache Bereinigung, falls das LLM zusätzliche Formatierung hinzufügt
+    cleaned_query = query.replace("Formulierte arXiv Suchanfrage:", "").strip()
+    if not cleaned_query: # Fallback, wenn nach Bereinigung leer
+        return "all:\"research paper\"" if not user_prompt else f"all:\"{user_prompt.strip()}\""
+    return cleaned_query
+
+
+async def summarize_arxiv_abstract(abstract: str) -> str:
+    context_data = {"abstract": abstract}
+    # print(f"LOG_LLM_ARXIV: Generiere Zusammenfassung für Abstract (Auszug): {abstract[:100]}...") # Kann sehr lang sein
+    summary = await generate_text_with_llm(ARXIV_ABSTRACT_SUMMARY_PROMPT_TEMPLATE, context_data)
+    if summary and ("Fehler:" in summary or not summary.strip()):
+        print(f"WARN_LLM_ARXIV: LLM gab fehlerhafte Zusammenfassung zurück: {summary}")
+        return "Zusammenfassung konnte nicht generiert werden."
+    
+    # Bereinigung
+    cleaned_summary = summary.replace("Zusammenfassung (1-2 Sätze):", "").strip()
+    if not cleaned_summary:
+        return "Zusammenfassung konnte nicht generiert werden."
+    return cleaned_summary
