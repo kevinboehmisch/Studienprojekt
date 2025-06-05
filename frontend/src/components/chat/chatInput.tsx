@@ -1,33 +1,38 @@
-"use client"; // Damit es in Next.js 13+ im Browser läuft
+"use client";
 import { useState } from "react";
 
 interface ChatInputProps {
-    onSend: (message: string) => void;
+  onSend: (message: string) => void;
+  disabled?: boolean;
 }
 
-export default function ChatInput({ onSend }: ChatInputProps) {
-    const [input, setInput] = useState("");
+export default function ChatInput({ onSend, disabled = false }: ChatInputProps) {
+  const [input, setInput] = useState("");
 
-    const handleSend = () => {
-        if (input.trim() === "") return;
-        onSend(input);
-        setInput("");
-    };
+  const handleSend = () => {
+    if (input.trim() === "") return;
+    onSend(input);
+    setInput("");
+  };
 
-    return (
-        <div className="p-4 flex space-x-2">
-            <input
-                className="border p-2 flex-grow"
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Gib eine Frage ein..."
-            />
-            <button 
-                onClick={handleSend} 
-                className="bg-blue-500 text-white px-4 py-2">
-                Senden
-            </button>
-        </div>
-    );
+  return (
+    <div className="flex items-center gap-2">
+      <input
+        className="flex-grow border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-black"
+        type="text"
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
+        placeholder="Stellen Sie Ihre Frage..."
+        disabled={disabled}
+      />
+      <button
+        onClick={handleSend}
+        className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm"
+        disabled={disabled}
+      >
+        Senden
+      </button>
+    </div>
+  );
 }
