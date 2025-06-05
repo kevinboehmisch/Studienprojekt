@@ -30,6 +30,8 @@ const DocumentSetup: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [outline, setOutline] = useState<OutlineItem[]>([]);
   const [outlineTitle, setOutlineTitle] = useState("");
+  const [projectName, setProjectName] = useState(""); // <--- NEU
+  const [projectId, setProjectId] = useState(Date.now().toString()); // <--- NEU
 
   const [documentConfig, setDocumentConfig] = useState({
     pageCount: 10,
@@ -45,6 +47,7 @@ const DocumentSetup: React.FC = () => {
       if (savedConfig) {
         try {
           const config = JSON.parse(savedConfig);
+          if (config.projectName) setProjectName(config.projectName); // <--- NEU
           if (config.outlineTitle) setOutlineTitle(config.outlineTitle);
           if (config.outline && Array.isArray(config.outline))
             setOutline(config.outline);
@@ -302,6 +305,21 @@ const DocumentSetup: React.FC = () => {
       ),
     },
     {
+      title: "Projektname",
+      description: "Geben Sie Ihrem Projekt einen Namen.",
+      component: (
+        <div className="flex flex-col space-y-2">
+          <input
+            type="text"
+            value={projectName}
+            onChange={(e) => setProjectName(e.target.value)}
+            placeholder="Projektname (z.B. Bachelorarbeit KI)"
+            className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-white"
+          />
+        </div>
+      ),
+    },
+    {
       title: "Gliederung erstellen",
       description:
         "Erstellen Sie eine Gliederung für Ihre Arbeit - manuell oder mit KI-Unterstützung.",
@@ -384,12 +402,37 @@ const DocumentSetup: React.FC = () => {
         ...documentConfig,
         outline: outline,
         outlineTitle: outlineTitle,
+        projectName: projectName,
+        projectId: projectId, // projectId wird unten gesetzt
       };
-      localStorage.setItem("documentConfig", JSON.stringify(fullConfig));
-      console.log(
-        "Saving to localStorage (pure titles):",
-        JSON.stringify(fullConfig, null, 2)
-      );
+
+      // --- Projekte-Array im localStorage pflegen ---
+      try {
+        const projectsRaw = localStorage.getItem("projects");
+        let projectsArr = [];
+        if (projectsRaw) {
+          projectsArr = JSON.parse(projectsRaw);
+          if (!Array.isArray(projectsArr)) projectsArr = [];
+        }
+        let thisProjectId = projectId;
+        // Prüfe, ob Projektname schon existiert
+        let existing = projectsArr.find((p: any) => p && p.title === projectName);
+        if (!existing) {
+          thisProjectId = Date.now().toString();
+          projectsArr.push({
+            id: thisProjectId,
+            title: projectName,
+          });
+          localStorage.setItem("projects", JSON.stringify(projectsArr));
+        } else {
+          thisProjectId = existing.id;
+        }
+        // Speichere die Konfiguration spezifisch für dieses Projekt
+        localStorage.setItem(`documentConfig_${thisProjectId}`, JSON.stringify({ ...fullConfig, projectId: thisProjectId }));
+        // Setze das aktuelle Projekt als aktiv
+        localStorage.setItem("documentConfig", JSON.stringify({ ...fullConfig, projectId: thisProjectId }));
+      } catch {}
+      // --- Ende Projekte-Array ---
       router.push("/chat");
     }
   };

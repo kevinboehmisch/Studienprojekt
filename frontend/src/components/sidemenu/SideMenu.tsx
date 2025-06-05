@@ -28,6 +28,7 @@ import {
 } from "../../utils/outlineUtils"; // Pfad prüfen und ggf. anpassen
 
 import SourcesPanel from "./SourcesPanel"; // Importiere das SourcesPanel
+import Link from "next/link"; // <--- hinzufügen
 // Typen für die Daten (vereinfacht für das Beispiel)
 interface ProjectFile {
   id: string;
@@ -54,49 +55,54 @@ const SideMenu: React.FC<SideMenuProps> = ({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  const [outlineTitle, setOutlineTitle] = useState<string>("");
 
-  const projectFiles: ProjectFile[] = [
-    {
-      id: "proj1",
-      name: "Einleitung.txt",
-      lastModified: "10.07.2024",
-      active: true,
-    },
-    { id: "proj2", name: "Methodik_Entwurf.txt", lastModified: "08.07.2024" },
-    {
-      id: "proj3",
-      name: "Diskussion_Rohfassung.txt",
-      lastModified: "05.07.2024",
-    },
-  ];
+  // Projekte aus localStorage laden (als Array)
+  const [projects, setProjects] = useState<{ id: string; title: string }[]>([]);
 
-  const sourceItems: SourceItem[] = [
-    {
-      id: "src1",
-      displayCitation: "(Müller et al., 2023)",
-      fullCitation:
-        "Müller, A., Schmidt, B., & Meier, C. (2023). Titel der Studie. Journal.",
-      previewImageUrl:
-        "https://via.placeholder.com/40x50/E0E7FF/4338CA?text=PDF",
-      pdfUrl: "#",
-    },
-    {
-      id: "src2",
-      displayCitation: "(Schulze, 2022)",
-      fullCitation:
-        "Schulze, T. (2022). Ein weiteres wichtiges Paper. Conference Proceedings.",
-      previewImageUrl:
-        "https://via.placeholder.com/40x50/DBEAFE/1D4ED8?text=PDF",
-    },
-    {
-      id: "src3",
-      displayCitation: "(Huber & Keller, 2024)",
-      fullCitation:
-        "Huber, F., & Keller, S. (2024). Relevante Erkenntnisse. Buchkapitel.",
-      previewImageUrl:
-        "https://via.placeholder.com/40x50/E0F2FE/0891B2?text=PDF",
-    },
-  ];
+  // Hilfsfunktion: Projekte aus localStorage laden
+  const loadProjects = () => {
+    if (typeof window !== "undefined") {
+      const savedProjects = localStorage.getItem("projects");
+      if (savedProjects) {
+        try {
+          const parsed = JSON.parse(savedProjects);
+          // Filtere leere oder fehlerhafte Projekte raus
+          if (Array.isArray(parsed)) {
+            setProjects(parsed.filter((p) => p && p.id && p.title));
+          } else {
+            setProjects([]);
+          }
+        } catch (e) {
+          setProjects([]);
+        }
+      } else {
+        setProjects([]);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedConfig = localStorage.getItem("documentConfig");
+      if (savedConfig) {
+        try {
+          const config = JSON.parse(savedConfig);
+          if (config.outlineTitle) setOutlineTitle(config.outlineTitle);
+        } catch (e) {}
+      }
+      // Beispiel: Projekte aus localStorage laden (hier als Array von Projekten erwartet)
+      loadProjects();
+    }
+  }, [outlineTitle]);
+
+  // Projekte nach Hinzufügen neu laden, wenn das Panel geöffnet wird
+  useEffect(() => {
+    // Lade Projekte immer beim Öffnen des Panels neu
+    if (isPanelOpen && activeView === "projects") {
+      loadProjects();
+    }
+  }, [isPanelOpen, activeView]);
 
   const displayOutline = useMemo(() => {
     return generateNumberedDisplayOutline(outline);
@@ -275,29 +281,117 @@ const SideMenu: React.FC<SideMenuProps> = ({
     );
   };
 
+  // Projekt löschen
+  const handleDeleteProject = (projectId: string) => {
+    if (typeof window !== "undefined") {
+      const savedProjects = localStorage.getItem("projects");
+      if (savedProjects) {
+        try {
+          let parsed = JSON.parse(savedProjects);
+          if (Array.isArray(parsed)) {
+            parsed = parsed.filter((p: any) => p.id !== projectId);
+            localStorage.setItem("projects", JSON.stringify(parsed));
+            setProjects(parsed);
+            // Optional: Wenn das gelöschte Projekt das aktuelle ist, documentConfig zurücksetzen
+            const currentConfig = localStorage.getItem("documentConfig");
+            if (currentConfig) {
+              try {
+                const configObj = JSON.parse(currentConfig);
+                if (
+                  configObj.projectName &&
+                  projects.find(
+                    (p) => p.id === projectId && p.title === configObj.projectName
+                  )
+                ) {
+                  localStorage.removeItem("documentConfig");
+                }
+              } catch {}
+            }
+          }
+        } catch {}
+      }
+    }
+  };
+
+  // Projekt als aktiv setzen und zugehörige Daten laden
+  const handleSelectProject = (proj: { id: string; title: string }) => {
+    if (typeof window !== "undefined") {
+      // Lade alle Projekte aus localStorage
+      const allProjectsRaw = localStorage.getItem("projects");
+      let allProjects = [];
+      if (allProjectsRaw) {
+        try {
+          allProjects = JSON.parse(allProjectsRaw);
+        } catch {}
+      }
+      // Hole das aktuelle Projekt
+      const currentProject = allProjects.find((p: any) => p.id === proj.id);
+
+      // Lade die zugehörige Konfiguration für dieses Projekt
+      const projectConfigRaw = localStorage.getItem(`documentConfig_${proj.id}`);
+      let projectConfig = {};
+      if (projectConfigRaw) {
+        try {
+          projectConfig = JSON.parse(projectConfigRaw);
+        } catch {}
+      }
+
+      // Setze das aktuelle Projekt als aktives documentConfig
+      localStorage.setItem(
+        "documentConfig",
+        JSON.stringify({
+          ...projectConfig,
+          projectName: proj.title,
+          projectId: proj.id,
+        })
+      );
+      window.location.href = "/chat";
+    }
+  };
+
   const renderPanelContent = () => {
     switch (activeView) {
       case "projects":
-        /* ... unverändert ... */ return (
+        return (
           <div className="p-3 space-y-2">
-            {projectFiles.map((file) => (
-              <div
-                key={file.id}
-                className={`p-2 rounded-md cursor-pointer hover:bg-gray-100 ${
-                  file.active ? "bg-blue-50 border border-blue-200" : "bg-white"
-                }`}
-              >
-                <p className="text-sm font-medium text-gray-800 truncate">
-                  {file.name}
-                </p>
-                <p className="text-xs text-gray-500">
-                  Zuletzt bearbeitet: {file.lastModified}
-                </p>
-              </div>
-            ))}
-            <button className="w-full mt-2 flex items-center justify-center py-2 px-3 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-colors">
-              <Plus size={16} className="mr-1.5" /> Neues Textdokument
-            </button>
+            <div className="mb-2 px-2 py-1 rounded bg-blue-50 border border-blue-100 text-blue-800 text-xs font-semibold">
+              Meine Projekte
+            </div>
+            <div className="flex flex-col gap-1">
+              {projects.length === 0 && (
+                <div className="text-gray-400 text-sm px-2 py-4 text-center">
+                  Keine Projekte gefunden.
+                </div>
+              )}
+              {projects.map((proj) => (
+                <div key={proj.id} className="flex items-center group">
+                  <button
+                    className="flex-1 block text-left px-3 py-2 rounded-md hover:bg-blue-100 text-gray-800 font-medium transition-colors truncate cursor-pointer"
+                    title={proj.title}
+                    style={{ cursor: "pointer" }}
+                    onClick={() => handleSelectProject(proj)}
+                  >
+                    {proj.title}
+                  </button>
+                  <button
+                    className="ml-2 p-1 rounded hover:bg-red-100 text-red-600 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                    title="Projekt löschen"
+                    style={{ cursor: "pointer" }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteProject(proj.id);
+                    }}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <Link href="/setup">
+              <button className="w-full mt-4 flex items-center justify-center py-2 px-3 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-colors">
+                <Plus size={16} className="mr-1.5" /> Neues Projekt
+              </button>
+            </Link>
           </div>
         );
       case "outline":
@@ -409,9 +503,7 @@ const SideMenu: React.FC<SideMenuProps> = ({
                 <X size={18} />
               </button>
             </div>
-            <div className="flex-grow overflow-y-auto">
-              {renderPanelContent()}
-            </div>
+            <div className="flex-grow overflow-y-auto">{renderPanelContent()}</div>
           </>
         )}
       </div>
