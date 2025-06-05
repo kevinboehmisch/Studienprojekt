@@ -6,6 +6,7 @@ import {
   ChevronLeft, ChevronRight, Files, ListTree, BookOpen, Plus, Search, Settings, X
 } from 'lucide-react';
 
+import SourcesPanel from './SourcesPanel'; // Importiere das SourcesPanel
 // Typen für die Daten (vereinfacht für das Beispiel)
 interface ProjectFile {
   id: string;
@@ -21,13 +22,6 @@ interface OutlineItem {
   onClick?: () => void; // Aktion beim Klicken
 }
 
-interface SourceItem {
-  id: string;
-  displayCitation: string; // z.B. "(Müller et al., 2023)"
-  fullCitation?: string;    // Für Tooltip oder Detailansicht
-  previewImageUrl?: string; // URL zu einem kleinen Vorschaubild (optional)
-  pdfUrl?: string; // Optional: direkter Link zum PDF
-}
 
 type ActivePanelView = 'projects' | 'outline' | 'sources' | null;
 
@@ -50,11 +44,7 @@ const SideMenu: React.FC = () => {
     { id: 'o2.2', title: '2.2 Aktuelle Forschung', level: 2 },
   ];
 
-  const sourceItems: SourceItem[] = [
-    { id: 'src1', displayCitation: '(Müller et al., 2023)', fullCitation: 'Müller, A., Schmidt, B., & Meier, C. (2023). Titel der Studie. Journal.', previewImageUrl: 'https://via.placeholder.com/40x50/E0E7FF/4338CA?text=PDF', pdfUrl: '#' },
-    { id: 'src2', displayCitation: '(Schulze, 2022)', fullCitation: 'Schulze, T. (2022). Ein weiteres wichtiges Paper. Conference Proceedings.', previewImageUrl: 'https://via.placeholder.com/40x50/DBEAFE/1D4ED8?text=PDF' },
-    { id: 'src3', displayCitation: '(Huber & Keller, 2024)', fullCitation: 'Huber, F., & Keller, S. (2024). Relevante Erkenntnisse. Buchkapitel.', previewImageUrl: 'https://via.placeholder.com/40x50/E0F2FE/0891B2?text=PDF' },
-  ];
+
 
   const togglePanel = (view: ActivePanelView) => {
     if (activeView === view && isPanelOpen) {
@@ -107,32 +97,9 @@ const SideMenu: React.FC = () => {
             </button>
           </div>
         );
-      case 'sources':
-        return (
-          <div className="p-3 space-y-2">
-            {sourceItems.map(source => (
-              <div key={source.id} title={source.fullCitation} className="flex items-start p-2 rounded-md cursor-pointer hover:bg-gray-100 bg-gray-50 border border-gray-200">
-                {source.previewImageUrl && (
-                  <img src={source.previewImageUrl} alt="Quelle" className="w-10 h-12 object-cover rounded-sm mr-3 flex-shrink-0" />
-                )}
-                {!source.previewImageUrl && (
-                    <div className="w-10 h-12 bg-indigo-100 rounded-sm mr-3 flex-shrink-0 flex items-center justify-center">
-                        <BookOpen size={20} className="text-indigo-500"/>
-                    </div>
-                )}
-                <div className="overflow-hidden">
-                  <p className="text-xs font-semibold text-indigo-700 truncate">{source.displayCitation}</p>
-                  <p className="text-xs text-gray-600 truncate mt-0.5">{source.fullCitation?.substring(0, 60)}...</p>
-                </div>
-                {/* Optional: Button um PDF anzuzeigen, falls pdfUrl vorhanden */}
-                {/* {source.pdfUrl && <button onClick={() => window.open(source.pdfUrl, '_blank')}><Link2 size={14} className="ml-2 text-gray-400 hover:text-blue-500"/></button>} */}
-              </div>
-            ))}
-            <button className="w-full mt-2 flex items-center justify-center py-2 px-3 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-colors">
-              <Plus size={16} className="mr-1.5" /> Quelle hinzufügen
-            </button>
-          </div>
-        );
+       case 'sources':
+        // HIER WIRD DIE NEUE KOMPONENTE EINGEFÜGT
+        return <SourcesPanel />;
       default:
         return null;
     }

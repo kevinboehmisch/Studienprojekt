@@ -1,12 +1,14 @@
 # app/api/pdf_processing.py
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, status
-from typing import Dict, Any
+from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, status, Path
+from typing import Dict, Any, List
 from sqlalchemy.ext.asyncio import AsyncSession # NEU: Import für DB-Session
-
+import uuid
 from app.services.pdf_processing_service import PdfProcessingService
 from app.dependencies import get_marker_resources 
 from app.schemas.processing_schemas import PdfProcessingResult
 from app.db.session import get_async_db # NEU: Importiere die DB-Session Dependency
+from app.db.crud import crud_document # Importiere die neuen CRUD-Funktionen
+from app.schemas.document_schemas import DocumentDisplay
 
 # Router für PDF-Verarbeitungs-Endpunkte
 router = APIRouter(
@@ -70,3 +72,48 @@ async def extract_and_store_content_from_pdf( # Name der Funktion ggf. auch anpa
         import traceback
         traceback.print_exc() # Logge den vollen Traceback für Debugging
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Ein interner Serverfehler ist aufgetreten: {str(e)}")
+    
+    
+@router.get("/documents", response_model=List[DocumentDisplay])
+async def read_documents(
+    skip: int = 0,
+    limit: int = 20, # Default-Limit etwas niedriger für Listenansichten
+    db: AsyncSession = Depends(get_async_db)
+):
+    """
+    Ruft eine Liste aller verarbeiteten Dokumente ab.
+    """
+    documents = await crud_document.get_documents(db, skip=skip, limit=limit)
+    return documents
+
+# NEUER Endpunkt: Ein spezifisches Dokument abrufen
+@router.get("/documents/{document_id}", response_model=DocumentDisplay)
+async def read_document(
+    document_id: uuid.UUID = Path(..., description="Die ID des abzurufenden Dokuments"),
+    db: AsyncSession = Depends(get_async_db)
+):
+    """
+    Ruft ein spezifisches Dokument anhand seiner ID ab.
+    """
+    db_document = await crud_document.get_document(db, document_id=document_id)
+    if db_document is None:
+        raise HTTPException(status_code=404, detail="Dokument nicht gefunden")
+    return db_document
+
+# NEUER Endpunkt: Ein Dokument löschen
+@router.delete("/documents/{document_id}", response_model=DocumentDisplay) # Gibt das gelöschte Dokument zurück
+async def delete_document_endpoint( # Name geändert, um Konflikt zu vermeiden, falls du delete_document importierst
+    document_id: uuid.UUID = Path(..., description="Die ID des zu löschenden Dokuments"),
+    db: AsyncSession = Depends(get_async_db)
+):
+    """
+    Löscht ein spezifisches Dokument anhand seiner ID.
+    Die zugehörigen Chunks werden durch die Cascade-Beziehung in der DB ebenfalls gelöscht.
+    """
+    deleted_document = await crud_document.delete_document(db, document_id=document_id)
+    if deleted_document is None:
+        raise HTTPException(status_code=404, detail="Dokument nicht gefunden")
+    
+    await db.commit() # Wichtig: Commit nach der Löschoperation
+    print(f"LOG_API: Dokument mit ID {document_id} erfolgreich gelöscht.")
+    return deleted_document
