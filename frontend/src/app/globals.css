@@ -25,3 +25,34 @@ body {
 .animate-fadeIn {
   animation: fadeIn 0.2s ease-out;
 }
+
+/* Überschriften-Styles für den Tiptap Editor */
+.ProseMirror h1 {
+  font-size: 2rem !important;
+  font-weight: 800 !important;
+  color: #1f2937 !important;
+  margin: 2rem 0 1rem 0 !important;
+  border-bottom: 2px solid #e5e7eb !important;
+  padding-bottom: 0.5rem !important;
+}
+
+.ProseMirror h2 {
+  font-size: 1.5rem !important;
+  font-weight: 700 !important;
+  color: #374151 !important;
+  margin: 1.5rem 0 0.75rem 0 !important;
+}
+
+.ProseMirror h3 {
+  font-size: 1.25rem !important;
+  font-weight: 600 !important;
+  color: #4b5563 !important;
+  margin: 1.25rem 0 0.5rem 0 !important;
+}
+
+.ProseMirror h4 {
+  font-size: 1.125rem !important;
+  font-weight: 600 !important;
+  color: #6b7280 !important;
+  margin: 1rem 0 0.5rem 0 !important;
+}

@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@tiptap/extension-bubble-menu": "^2.12.0",
+    "@tiptap/extension-text-align": "^2.13.0",
     "@tiptap/pm": "^2.12.0",
     "@tiptap/react": "^2.12.0",
     "@tiptap/starter-kit": "^2.12.0",

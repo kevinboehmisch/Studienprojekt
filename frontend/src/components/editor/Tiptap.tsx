@@ -3,6 +3,7 @@
 
 import { useEditor, EditorContent, Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
+import TextAlign from '@tiptap/extension-text-align'
 import React, { useState, useCallback, useEffect, useRef } from 'react'
 import EditorBubbleMenu from './EditorBubbleMenu'
 import EditorToolbar from './EditorToolbar'
@@ -106,7 +107,7 @@ const Tiptap: React.FC<TiptapProps> = ({ onOutlineUpdate, initialOutline }) => {
     }
 
     // Neuen HTML-Inhalt mit erhaltenen Texten generieren
-    let html = '<h1>PaperPilot Text Editor</h1>\n';
+    let html = '<h1></h1>\n';
     const numberedOutline = generateNumberedDisplayOutline(newOutlineItems);
 
     const processItems = (items: NumberedOutlineItem[]) => {
@@ -146,7 +147,7 @@ const Tiptap: React.FC<TiptapProps> = ({ onOutlineUpdate, initialOutline }) => {
 
   // Funktion zum Konvertieren der Gliederung in HTML für den ersten Load
   const convertOutlineToHTML = useCallback((outlineItems: OutlineItem[]): string => {
-    let html = '<h1>PaperPilot Text Editor</h1>\n';
+    let html = '<h1></h1>\n';
     
     const numberedOutline = generateNumberedDisplayOutline(outlineItems);
 
@@ -194,7 +195,7 @@ const Tiptap: React.FC<TiptapProps> = ({ onOutlineUpdate, initialOutline }) => {
     
     console.log("Tiptap: Initializing with default content.");
     return `
-      <h1>PaperPilot Text Editor</h1>
+      <h1></h1>
       <p>
         Willkommen zu Ihrem Text-Editor! Wählen Sie etwas Text aus, um das Formatierungsmenü anzuzeigen.
       </p>
@@ -210,6 +211,11 @@ const Tiptap: React.FC<TiptapProps> = ({ onOutlineUpdate, initialOutline }) => {
         heading: false,
       }),
       CustomHeading.configure({ levels: [1, 2, 3, 4] }),
+      TextAlign.configure({
+        types: ['heading', 'paragraph'],
+        alignments: ['left', 'center', 'right'],
+        defaultAlignment: 'left',
+      }),
       Citation,
     ],
     immediatelyRender: false,
@@ -380,8 +386,11 @@ const Tiptap: React.FC<TiptapProps> = ({ onOutlineUpdate, initialOutline }) => {
           editor.chain().focus().insertContent(contentToInsert).run();
         }
       } else { alert("Kein Text von der KI generiert (Kontextmenü)."); }
-    } catch (e: any) { alert(`Fehler bei Textgenerierung (Kontextmenü): ${e?.message || 'Unbekannt'}`); }
-    finally { setIsGeneratingTextFromContext(false); }
+    } catch (e: any) { 
+      alert(`Fehler bei Textgenerierung (Kontextmenü): ${e?.message || 'Unbekannt'}`); 
+    } finally { 
+      setIsGeneratingTextFromContext(false); 
+    }
   };
 
   const handleContextMenuRewriteText = (prompt?: string) => {
