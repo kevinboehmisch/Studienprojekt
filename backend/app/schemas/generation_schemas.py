@@ -1,11 +1,12 @@
 # app/schemas/generation_schemas.py
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
 
 class GenerateTextQuery(BaseModel):
     """Request-Body für den Textgenerierungs-Endpunkt."""
-    query: str
-    num_sources: Optional[int] = 3
+    editor_context_html: str = Field(..., description="Der gesamte HTML-Inhalt des Editors als Kontext.")
+    user_prompt: Optional[str] = Field(None, description="Die spezifische Anweisung oder Frage des Nutzers (optional).")
+    num_sources: Optional[int] = Field(default=2, ge=1, le=10, description="Anzahl der zu berücksichtigenden Quellen.")
 
 class SourceDetail(BaseModel):
     """Detaillierte Informationen zu einer Quelle, die für die Generierung/Retrieval verwendet wurde."""

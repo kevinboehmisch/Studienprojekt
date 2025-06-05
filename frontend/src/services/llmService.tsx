@@ -228,3 +228,56 @@ export async function findSimilarSources(queryText: string, limitResults: number
         throw new Error(`Fehler bei der Quellensuche: ${errorMessage}`);
     }
 }
+
+
+// --- NEU: Für den /generation/generate-from-query Endpunkt ---
+interface GenerateTextPayload {
+   editor_context_html: string; // NEU
+  user_prompt?: string | null;  
+  num_sources?: number; // Optional im Frontend, Backend hat Default
+}
+
+interface SourceDetailFE { // Du hast dieses Interface schon für den Chat-Endpunkt
+    chunk_id: string;
+    filename?: string | null;
+    title?: string | null;
+    author?: string | null;
+    year?: number | null;
+    page?: number | null;
+    content_preview?: string | null;
+    distance?: number | null;
+}
+
+export interface GeneratedTextResponseFE { // Response vom Backend
+    generated_text: string | null;
+    sources: SourceDetailFE[];
+}
+
+export async function generateTextFromQuery(
+  editorContextHtml: string,      // NEUER Parameter
+  userPrompt?: string | null,    // Optionaler spezifischer Prompt
+  numSources: number = 2
+): Promise<GeneratedTextResponseFE> {
+  const payload: GenerateTextPayload = {
+    editor_context_html: editorContextHtml,
+    user_prompt: userPrompt,
+    num_sources: numSources,
+  };
+  console.log("SENDE AN /generation/generate-from-query Payload:", payload);
+
+  try {
+    const response = await axios.post<GeneratedTextResponseFE>(
+      "http://127.0.0.1:8000/generation/generate-from-query",
+      payload,
+      { headers: { "Content-Type": "application/json" } }
+    );
+    console.log("Antwort von /generation/generate-from-query:", response.data);
+    return response.data;
+  } catch (error) {
+    console.error("Fehler bei /generation/generate-from-query API-Anfrage:", error);
+    const errorDetails = (axios.isAxiosError(error) && error.response)
+      ? error.response.data.detail || `Serverfehler (Status: ${error.response.status})`
+      : "Netzwerkfehler oder unbekannter Serverfehler";
+    throw new Error(`Fehler bei der Textgenerierung: ${errorDetails}`);
+  }
+}

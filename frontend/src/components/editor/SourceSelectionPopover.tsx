@@ -1,65 +1,62 @@
 // src/components/editor/SourceSelectionPopover.tsx
 
 import React from 'react';
-import { SourceChunk } from '@/services/llmService'; // Oder wo immer SourceChunk definiert ist
-import { BookOpen, CheckCircle } from 'lucide-react';
+import { SourceChunk } from '@/services/llmService';
+import { CheckCircle } from 'lucide-react'; // BookOpen wird hier nicht direkt verwendet
+// Importiere die Formatierungsfunktion und den Stil-Typ
+import { formatAuthors } from '@/utils/citationFormatter'; // Passe den Pfad ggf. an
+import type { CitationStyle } from '@/utils/citationFormatter'; // Nur den Typ importieren
 
-export interface SourceSelectionPopoverProps { // Exportiere, damit EditorBubbleMenu es verwenden kann
+export interface SourceSelectionPopoverProps {
   sources: SourceChunk[];
   onSelectSource: (source: SourceChunk) => void;
   onClose: () => void;
-  position?: { top: number; left: number } | null; // <--- HIER: Mache position optional mit '?'
+  position?: { top: number; left: number } | null;
 }
 
 const SourceSelectionPopover: React.FC<SourceSelectionPopoverProps> = ({
   sources,
   onSelectSource,
   onClose,
-  position, // Bleibt hier, ist jetzt aber optional
+  // position Prop wird hier nicht direkt für das Styling verwendet, wenn der Parent positioniert
 }) => {
-  // Wenn die Positionierung ausschließlich durch den Parent-Div in EditorBubbleMenu erfolgt,
-  // und diese Komponente sich nicht mehr selbst absolut positioniert,
-  // dann wird die 'position'-Prop hier drin vielleicht gar nicht mehr direkt für CSS verwendet.
-  // Die Klassen wie "absolute z-50..." würden dann vom Parent kommen.
-  // In unserem Fall positioniert der Parent, daher ist die 'position'-Prop hier
-  // für das direkte Styling dieses Divs nicht mehr nötig.
-
-  // Die ursprüngliche Logik, die 'position' für das Styling verwendete, war:
-  /*
-  if (!position || sources.length === 0) { // Wenn position hier noch Pflicht wäre
-    return null;
-  }
-  // ...
-  <div
-    className="absolute z-50 bg-white ..." // Diese Klassen sind jetzt am Wrapper-Div in EditorBubbleMenu
-    style={{ top: position.top, left: position.left }} // Dieser Style ist jetzt am Wrapper-Div
-  >
-  */
-
-  // Angepasster Code für den Fall, dass der Parent die Positionierung übernimmt:
-  // Die Klassen für das Aussehen bleiben hier.
-  if (sources.length === 0) { // Nur prüfen, ob Quellen da sind
+  if (sources.length === 0) {
     return null;
   }
 
   const formatSourceDisplay = (source: SourceChunk) => {
-    // ... (deine Formatierungslogik)
-    const author = source.document_author || 'Unbekannt';
-    const year = source.publication_year || 'N/A';
-    const page = source.page_number !== null ? `S. ${source.page_number + 1}` : 'Seite unbekannt';
+    // Verwende hier denselben Stil wie in CitationView für Konsistenz,
+    // oder einen spezifischen Stil für die Vorschau.
+    const previewStyle: CitationStyle = 'default'; // oder 'apa'
+
+    // Verwende formatAuthors für die Autorenanzeige
+    const displayAuthor = formatAuthors(source.document_author, previewStyle);
+
+    const year = source.publication_year || 'N.A.'; // 'N.A.' für Not Available oder N.D. für No Date
+    const page = source.page_number !== null ? `S. ${source.page_number + 1}` : 'S. unbek.';
     const title = source.document_title && source.document_title.length > 50
                   ? `${source.document_title.substring(0, 47)}...`
-                  : source.document_title || 'Unbekannter Titel';
-    return `${author} (${year}), ${title}, ${page}`;
+                  : source.document_title || 'Unbek. Titel';
+
+    // Baue den Anzeigetext zusammen
+    let displayText = `${displayAuthor}`;
+    if (source.publication_year) { // Nur hinzufügen, wenn Jahr vorhanden
+        displayText += ` (${year})`;
+    } else {
+        displayText += ` (N.D.)`; // Falls kein Jahr vorhanden
+    }
+    displayText += `, ${title}`;
+    if (source.page_number !== null) { // Nur hinzufügen, wenn Seite vorhanden
+        displayText += `, ${page}`;
+    }
+
+    return displayText;
   };
 
   return (
-    // Die Klassen für das grundlegende Aussehen und Verhalten des Popovers bleiben hier.
-    // Die absolute Positionierung und zIndex kommen vom Parent-Div in EditorBubbleMenu.
     <div
       className="bg-white border border-gray-300 rounded-lg shadow-xl p-3 max-w-md w-full"
-      // style prop für top/left wird hier nicht mehr benötigt, wenn der Parent positioniert
-      onClick={(e) => e.stopPropagation()} // Verhindert Schließen bei Klick in Popover
+      onClick={(e) => e.stopPropagation()}
     >
       <div className="flex justify-between items-center mb-2">
         <h3 className="text-md font-semibold text-gray-700">Quelle auswählen</h3>
@@ -71,36 +68,32 @@ const SourceSelectionPopover: React.FC<SourceSelectionPopoverProps> = ({
           ×
         </button>
       </div>
-      {sources.length > 0 ? (
-        <ul className="space-y-2 max-h-60 overflow-y-auto">
-          {sources.map((source, index) => (
-            <li
-              key={source.chunk_id || `source-${index}`}
-              className="p-2 hover:bg-gray-100 rounded-md cursor-pointer border border-transparent hover:border-gray-200"
-              onClick={() => onSelectSource(source)}
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex-grow">
-                    <p className="text-sm font-medium text-indigo-600">
-                    {formatSourceDisplay(source)}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1 line-clamp-2" title={source.chunk_content}>
-                    {source.chunk_content}
-                    </p>
-                </div>
-                <button
-                    className="ml-2 p-1 text-green-500 hover:text-green-700"
-                    title="Diese Quelle auswählen"
-                >
-                    <CheckCircle size={18} />
-                </button>
+      <ul className="space-y-2 max-h-60 overflow-y-auto">
+        {sources.map((source) => ( // Index nicht mehr zwingend für Key, wenn chunk_id immer da ist
+          <li
+            key={source.chunk_id} // chunk_id sollte eindeutig sein
+            className="p-2 hover:bg-gray-100 rounded-md cursor-pointer border border-transparent hover:border-gray-200"
+            onClick={() => onSelectSource(source)}
+          >
+            <div className="flex items-start justify-between">
+              <div className="flex-grow mr-2"> {/* Etwas Abstand zum Button */}
+                  <p className="text-sm font-medium text-indigo-600">
+                  {formatSourceDisplay(source)}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1 line-clamp-2" title={source.chunk_content}>
+                  {source.chunk_content}
+                  </p>
               </div>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="text-sm text-gray-500">Keine Quellen gefunden.</p> // Sollte durch die Prüfung oben nicht erreicht werden
-      )}
+              <button
+                  className="p-1 text-green-500 hover:text-green-700 flex-shrink-0" // flex-shrink-0 verhindert Schrumpfen
+                  title="Diese Quelle auswählen"
+              >
+                  <CheckCircle size={18} />
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 };

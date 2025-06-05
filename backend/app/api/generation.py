@@ -1,11 +1,10 @@
 # app/api/generation_endpoints.py
 from fastapi import APIRouter, Depends, HTTPException, Body
-from typing import List, Dict, Any, Optional # Dict, Any sind hier evtl. nicht mehr nötig
+from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.generation_service import GenerationService
 from app.db.session import get_async_db
-# Importiere die neuen Pydantic-Modelle für diesen Endpunkt
 from app.schemas.generation_schemas import GenerateTextQuery, GeneratedTextResponse, SourceDetail
 
 router = APIRouter(
@@ -15,33 +14,34 @@ router = APIRouter(
 
 @router.post("/generate-from-query", response_model=GeneratedTextResponse)
 async def generate_text_from_sources_endpoint(
-    request_body: GenerateTextQuery, # Verwendet das neue Request-Schema
+    request_body: GenerateTextQuery, # Verwendet das aktualisierte Request-Schema
     db: AsyncSession = Depends(get_async_db)
 ):
     """
-    Nimmt eine Nutzeranfrage entgegen, findet relevante Quellen in der Datenbank
-    und generiert basierend darauf einen neuen Text mit einem LLM.
+    Nimmt einen Editor-Kontext und eine optionale Nutzeranweisung entgegen,
+    findet relevante Quellen und generiert basierend darauf einen neuen Text.
     """
-    if not request_body.query.strip():
-        raise HTTPException(status_code=400, detail="Anfrage darf nicht leer sein.")
+
+    query_for_retrieval = request_body.user_prompt
+    if not query_for_retrieval or not query_for_retrieval.strip():
+   
+        if not request_body.editor_context_html.strip(): # Zumindest der Editor-Kontext sollte nicht leer sein
+             raise HTTPException(status_code=400, detail="Editor-Kontext darf nicht leer sein.")
 
     generation_service = GenerationService()
     try:
-        # Der Service gibt ein Dictionary zurück: {"generated_text": "...", "sources": [...]}
-        # wobei die "sources" eine Liste von Dictionaries ist.
-        service_result = await generation_service.generate_text_from_query(
+        service_result = await generation_service.generate_text_with_context( # NEUER Methodenname im Service
             db=db,
-            user_query=request_body.query,
+            editor_context_html=request_body.editor_context_html,
+            user_prompt=request_body.user_prompt, # Kann None sein
             num_retrieved_chunks=request_body.num_sources
         )
-        
-        # Konvertiere die Dictionaries in der "sources"-Liste des Service-Ergebnisses
-        # in Pydantic SourceDetail-Objekte für die API-Antwort.
+
         api_sources = []
         if service_result.get("sources"):
             for source_dict in service_result["sources"]:
                 api_sources.append(SourceDetail(**source_dict))
-        
+
         return GeneratedTextResponse(
             generated_text=service_result.get("generated_text"),
             sources=api_sources

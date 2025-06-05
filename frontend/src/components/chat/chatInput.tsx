@@ -25,7 +25,7 @@ export default function ChatInput({ onSend }: ChatInputProps) {
             />
             <button 
                 onClick={handleSend} 
-                className="bg-blue-500 text-white px-4 py-2">
+                className="bg-blue-600 text-white px-4 py-2">
                 Senden
             </button>
         </div>
