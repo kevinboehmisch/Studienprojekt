@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import ChatInterface from "../../components/chat/ChatInterface";
 import Tiptap from "../../components/editor/Tiptap";
 import SideMenu from "../../components/sidemenu/SideMenu";
-import { OutlineItem } from "../../utils/outlineUtils"; // Konsistenter Import
+import { OutlineItem } from "../../utils/outlineUtils";
 
 export default function ChatPage() {
   const [outline, setOutline] = useState<OutlineItem[]>([]);

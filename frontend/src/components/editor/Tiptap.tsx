@@ -9,14 +9,13 @@ import EditorToolbar from './EditorToolbar'
 import Citation from './extensions/CitationNode'
 import EditorContextMenu from './EditorContextMenu';
 import { generateTextFromQuery } from "@/services/llmService";
-import Heading from '@tiptap/extension-heading'; // Import für die Basis-Heading-Node
+import Heading from '@tiptap/extension-heading';
 
-// Importiere Typen und Funktionen aus outlineUtils
 import {
   OutlineItem,
   NumberedOutlineItem,
   generateNumberedDisplayOutline,
-} from '../../utils/outlineUtils'; // Pfad prüfen und ggf. anpassen!
+} from '../../utils/outlineUtils';
 
 interface MenuPosition {
   x: number;
@@ -28,11 +27,10 @@ interface TiptapProps {
   initialOutline?: OutlineItem[];
 }
 
-// Erweiterte Heading-Node, um Gliederungs-IDs und Level zu speichern
 const CustomHeading = Heading.extend({
   addAttributes() {
     return {
-      ...this.parent?.(), // Behält Standard-Attribute wie 'level' (für H1, H2 etc.)
+      ...this.parent?.(),
       'data-outline-id': {
         default: null,
         parseHTML: element => element.getAttribute('data-outline-id'),
@@ -44,7 +42,7 @@ const CustomHeading = Heading.extend({
         },
         keepOnSplit: false,
       },
-      'data-outline-level': { // Das Gliederungs-Level (1 für Hauptkapitel, 2 für Unterkapitel usw.)
+      'data-outline-level': {
         default: null,
         parseHTML: element => {
           const level = element.getAttribute('data-outline-level');
@@ -62,7 +60,6 @@ const CustomHeading = Heading.extend({
   },
 });
 
-
 const Tiptap: React.FC<TiptapProps> = ({ onOutlineUpdate, initialOutline }) => {
   const [contextMenuState, setContextMenuState] = useState<{
     isVisible: boolean;
@@ -71,25 +68,97 @@ const Tiptap: React.FC<TiptapProps> = ({ onOutlineUpdate, initialOutline }) => {
 
   const [isGeneratingTextFromContext, setIsGeneratingTextFromContext] = useState(false);
   const lastOutlineRef = useRef<string>(JSON.stringify(initialOutline || []));
+  const isInitialLoad = useRef(true);
 
-  // Funktion zum Konvertieren der Gliederung in HTML für den Editor
-  const convertOutlineToHTML = useCallback((outlineItems: OutlineItem[]): string => {
-    let html = '<h1>PaperPilot Text Editor</h1>\n'; // Ein allgemeiner Titel für das Dokument
+  // Funktion zum intelligenten Aktualisieren der Gliederung ohne Textverlust
+  const updateEditorWithNewOutline = useCallback((newOutlineItems: OutlineItem[], editorInstance: Editor) => {
+    if (!editorInstance) return;
+
+    // Aktuelle Überschriften und Inhalte aus dem Editor extrahieren
+    const currentContent = new Map<string, string>();
+    const currentDoc = editorInstance.state.doc;
     
-    const numberedOutline = generateNumberedDisplayOutline(outlineItems);
+    let currentHeadingId: string | null = null;
+    let contentAfterHeading: string[] = [];
+
+    currentDoc.forEach(node => {
+      if (node.type.name === CustomHeading.name) {
+        // Speichere den Inhalt der vorherigen Überschrift
+        if (currentHeadingId && contentAfterHeading.length > 0) {
+          currentContent.set(currentHeadingId, contentAfterHeading.join('\n').trim());
+        }
+        
+        // Beginne mit der neuen Überschrift
+        currentHeadingId = node.attrs['data-outline-id'] as string | null;
+        contentAfterHeading = [];
+      } else if (node.type.name === 'paragraph' && currentHeadingId) {
+        // Sammle Absätze nach der aktuellen Überschrift
+        const text = node.textContent?.trim();
+        if (text) {
+          contentAfterHeading.push(text);
+        }
+      }
+    });
+
+    // Speichere den Inhalt der letzten Überschrift
+    if (currentHeadingId && contentAfterHeading.length > 0) {
+      currentContent.set(currentHeadingId, contentAfterHeading.join('\n').trim());
+    }
+
+    // Neuen HTML-Inhalt mit erhaltenen Texten generieren
+    let html = '<h1>PaperPilot Text Editor</h1>\n';
+    const numberedOutline = generateNumberedDisplayOutline(newOutlineItems);
 
     const processItems = (items: NumberedOutlineItem[]) => {
       items.forEach(item => {
-        // Gliederungslevel 1 -> H2, Gliederungslevel 2 -> H3, Gliederungslevel 3 -> H4
         const editorHeadingLevel = item.level + 1;
-        // Sicherstellen, dass wir die konfigurierten Levels nicht überschreiten (hier max. H4)
         const safeEditorHeadingLevel = Math.min(editorHeadingLevel, 4);
 
         html += `<h${safeEditorHeadingLevel} 
                     data-outline-id="${item.id}" 
                     data-outline-level="${item.level}"
                  >${item.numberedTitle}</h${safeEditorHeadingLevel}>\n`;
-        // Füge einen leeren Absatz nach jeder Überschrift ein, damit der Benutzer dort schreiben kann.
+        
+        // Vorhandenen Inhalt wiederherstellen oder leeren Absatz einfügen
+        const existingContent = currentContent.get(item.id);
+        if (existingContent) {
+          // Teile den Inhalt in Absätze auf und füge sie ein
+          const paragraphs = existingContent.split('\n').filter(p => p.trim());
+          paragraphs.forEach(paragraph => {
+            html += `<p>${paragraph}</p>\n`;
+          });
+        } else {
+          html += "<p></p>\n";
+        }
+        
+        if (item.children && item.children.length > 0) {
+          processItems(item.children as NumberedOutlineItem[]);
+        }
+      });
+    };
+    
+    processItems(numberedOutline);
+    
+    // Editor-Inhalt aktualisieren
+    editorInstance.commands.setContent(html, false); // false -> kein 'update'-Event auslösen
+    
+  }, []); // Keine Abhängigkeiten, da wir editorInstance als Parameter übergeben
+
+  // Funktion zum Konvertieren der Gliederung in HTML für den ersten Load
+  const convertOutlineToHTML = useCallback((outlineItems: OutlineItem[]): string => {
+    let html = '<h1>PaperPilot Text Editor</h1>\n';
+    
+    const numberedOutline = generateNumberedDisplayOutline(outlineItems);
+
+    const processItems = (items: NumberedOutlineItem[]) => {
+      items.forEach(item => {
+        const editorHeadingLevel = item.level + 1;
+        const safeEditorHeadingLevel = Math.min(editorHeadingLevel, 4);
+
+        html += `<h${safeEditorHeadingLevel} 
+                    data-outline-id="${item.id}" 
+                    data-outline-level="${item.level}"
+                 >${item.numberedTitle}</h${safeEditorHeadingLevel}>\n`;
         html += "<p></p>\n"; 
         
         if (item.children && item.children.length > 0) {
@@ -102,7 +171,6 @@ const Tiptap: React.FC<TiptapProps> = ({ onOutlineUpdate, initialOutline }) => {
     return html;
   }, []);
 
-  // Initialer Content für den Editor
   const getInitialContent = useCallback((): string => {
     if (initialOutline && initialOutline.length > 0) {
       console.log("Tiptap: Initializing with initialOutline from props:", initialOutline);
@@ -139,9 +207,9 @@ const Tiptap: React.FC<TiptapProps> = ({ onOutlineUpdate, initialOutline }) => {
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        heading: false, // Standard-Heading von StarterKit deaktivieren
+        heading: false,
       }),
-      CustomHeading.configure({ levels: [1, 2, 3, 4] }), // H1, H2, H3, H4 erlaubt
+      CustomHeading.configure({ levels: [1, 2, 3, 4] }),
       Citation,
     ],
     immediatelyRender: false,
@@ -185,34 +253,43 @@ const Tiptap: React.FC<TiptapProps> = ({ onOutlineUpdate, initialOutline }) => {
     },
   });
 
-  // Effekt, um auf Änderungen von initialOutline (von außen, z.B. SideMenu) zu reagieren
+  // Effekt für Änderungen von außen (z.B. neue Kapitel)
   useEffect(() => {
-    if (editor && initialOutline) { // initialOutline kann auch ein leeres Array sein
+    if (editor && initialOutline) {
       const newInitialOutlineString = JSON.stringify(initialOutline);
-      // Nur aktualisieren, wenn sich die extern übergebene Gliederung von dem unterscheidet,
-      // was der Editor zuletzt gemeldet hat (um Schleifen zu vermeiden).
+      
       if (newInitialOutlineString !== lastOutlineRef.current) {
-        console.log("Tiptap: External outline change detected. Updating editor content.", initialOutline);
-        const html = convertOutlineToHTML(initialOutline);
-        // setContent löst ein 'update'-Event aus.
-        editor.commands.setContent(html, true); // true -> 'update'-Event auslösen
-        // Nach dem Setzen des Inhalts wird `onUpdate` getriggert,
-        // welches dann `lastOutlineRef.current` auf `newInitialOutlineString` setzt.
+        console.log("Tiptap: External outline change detected.", initialOutline);
+        
+        if (isInitialLoad.current) {
+          // Beim ersten Laden: normales setContent
+          console.log("Tiptap: Initial load - setting content normally");
+          const html = convertOutlineToHTML(initialOutline);
+          editor.commands.setContent(html, true);
+          isInitialLoad.current = false;
+        } else {
+          // Bei späteren Updates: intelligente Aktualisierung
+          console.log("Tiptap: Subsequent update - preserving existing content");
+          updateEditorWithNewOutline(initialOutline, editor);
+          // Manuell die letzte Outline-Referenz aktualisieren
+          lastOutlineRef.current = newInitialOutlineString;
+          // onOutlineUpdate aufrufen, um die Synchronisation sicherzustellen
+          if (onOutlineUpdate) {
+            onOutlineUpdate(initialOutline);
+          }
+        }
       }
     }
-  }, [initialOutline, editor, convertOutlineToHTML]);
+  }, [initialOutline, editor, convertOutlineToHTML, updateEditorWithNewOutline, onOutlineUpdate]);
 
-
-  // Funktion zum Extrahieren der Überschriften aus dem Editor in die OutlineItem-Struktur
   const extractHeadingsFromEditor = (editor: Editor): OutlineItem[] => {
     const extractedOutline: OutlineItem[] = [];
     const parentStack: OutlineItem[] = [];
 
     editor.state.doc.forEach(node => {
       if (node.type.name === CustomHeading.name) {
-        const editorHLevel = node.attrs.level; // H-Level im Editor (1 für H1, 2 für H2 etc.)
+        const editorHLevel = node.attrs.level;
         
-        // Ignoriere den globalen Dokumenttitel "PaperPilot Text Editor" (H1 ohne Gliederungsattribute)
         if (editorHLevel === 1 && !node.attrs['data-outline-id']) {
            return; 
         }
@@ -220,20 +297,15 @@ const Tiptap: React.FC<TiptapProps> = ({ onOutlineUpdate, initialOutline }) => {
         const outlineIdFromAttr = node.attrs['data-outline-id'] as string | null;
         const itemLevelFromAttr = node.attrs['data-outline-level'] as number | null;
         
-        // Bestimme das Gliederungslevel. Wenn data-outline-level gesetzt ist, nutze das.
-        // Sonst: H2 -> Level 1, H3 -> Level 2 etc.
         let currentItemLevel = itemLevelFromAttr !== null ? itemLevelFromAttr : (editorHLevel ? editorHLevel - 1 : 1);
         
-        if (currentItemLevel <= 0) { // Ungültiges Level
+        if (currentItemLevel <= 0) {
           console.warn("Tiptap: extractHeadings - Skipping heading with invalid level:", node.textContent);
           return;
         }
-        // Maximales Gliederungslevel (z.B. 3, wenn H4 das tiefste ist)
         currentItemLevel = Math.min(currentItemLevel, 3);
 
-
         const fullText = node.textContent || '';
-        // Entferne die Nummerierung (z.B. "1.1. ") vom Anfang des Titels
         const title = fullText.replace(/^[\d\.]+\s*/, '').trim();
 
         const newItem: OutlineItem = {
@@ -243,7 +315,6 @@ const Tiptap: React.FC<TiptapProps> = ({ onOutlineUpdate, initialOutline }) => {
           children: [],
         };
 
-        // Hierarchie aufbauen
         while (parentStack.length > 0 && parentStack[parentStack.length - 1].level >= newItem.level) {
           parentStack.pop();
         }
@@ -256,8 +327,7 @@ const Tiptap: React.FC<TiptapProps> = ({ onOutlineUpdate, initialOutline }) => {
             parent.children = parent.children || [];
             parent.children.push(newItem);
           } else {
-            console.warn("Tiptap: extractHeadings - Orphaned heading, adding to root or last valid parent with adjusted level:", newItem, "Parent stack:", JSON.parse(JSON.stringify(parentStack)));
-            // Fallback: Versuche, an den letzten Parent anzuhängen und Level anzupassen, oder als L1
+            console.warn("Tiptap: extractHeadings - Orphaned heading, adding to root or last valid parent with adjusted level:", newItem);
             if (parentStack.length > 0) {
                 const lastKnownParent = parentStack[parentStack.length - 1];
                 newItem.level = lastKnownParent.level + 1;
@@ -284,7 +354,7 @@ const Tiptap: React.FC<TiptapProps> = ({ onOutlineUpdate, initialOutline }) => {
     closeContextMenu();
     setIsGeneratingTextFromContext(true);
     const NUM_SOURCES = 3;
-    const editorHTML = editor.getHTML(); // Hier evtl. nur einen Teil des Dokuments (z.B. aktuelles Kapitel) nehmen
+    const editorHTML = editor.getHTML();
     const effectivePrompt = userPromptFromContextMenu?.trim() || "Schreibe einen passenden wissenschaftlichen Textabschnitt basierend auf dem aktuellen Kontext...";
     try {
       const response = await generateTextFromQuery(editorHTML, effectivePrompt, NUM_SOURCES);
@@ -300,7 +370,7 @@ const Tiptap: React.FC<TiptapProps> = ({ onOutlineUpdate, initialOutline }) => {
           if (sourceData && editor.schema.nodes.citation) {
             const attrs = { chunkId, author: sourceData.author, year: sourceData.year, page: sourceData.page, title: sourceData.title, displayText: `(${sourceData.author||'Autor'}, ${sourceData.year||'Jahr'})`};
             contentToInsert.push({ type: 'citation', attrs });
-          } else contentToInsert.push({ type: 'text', text: match[0] }); // Fallback: Zitation als Text einfügen
+          } else contentToInsert.push({ type: 'text', text: match[0] });
           lastIndex = citationRegex.lastIndex;
         }
         const textAfter = response.generated_text.substring(lastIndex);
@@ -314,7 +384,6 @@ const Tiptap: React.FC<TiptapProps> = ({ onOutlineUpdate, initialOutline }) => {
     finally { setIsGeneratingTextFromContext(false); }
   };
 
-
   const handleContextMenuRewriteText = (prompt?: string) => {
     if (!editor) return;
     closeContextMenu();
@@ -322,7 +391,6 @@ const Tiptap: React.FC<TiptapProps> = ({ onOutlineUpdate, initialOutline }) => {
         alert("Bitte Text für 'Umschreiben' markieren oder eine Anweisung im Kontextmenü-Prompt geben.");
         return;
     }
-    // Hier Logik für Umschreiben implementieren
     alert(`Aktion 'Umschreiben' aus Kontextmenü getriggert. Prompt: ${prompt || '(kein Prompt)'}. Markierter Text: ${editor.state.selection.empty ? 'Nichts' : editor.state.doc.textBetween(editor.state.selection.from, editor.state.selection.to, ' ')}`);
   };
 
@@ -333,7 +401,6 @@ const Tiptap: React.FC<TiptapProps> = ({ onOutlineUpdate, initialOutline }) => {
         alert("Bitte Text für 'Quellen suchen' markieren.");
         return;
     }
-    // Hier Logik für Quellen suchen implementieren
     alert("Aktion 'Quellen suchen' aus Kontextmenü getriggert. Markierter Text: " + editor.state.doc.textBetween(editor.state.selection.from, editor.state.selection.to, ' '));
   };
 
