@@ -9,6 +9,8 @@ from app.schemas.processing_schemas import PdfProcessingResult
 from app.db.session import get_async_db # NEU: Importiere die DB-Session Dependency
 from app.db.crud import crud_document # Importiere die neuen CRUD-Funktionen
 from app.schemas.document_schemas import DocumentDisplay
+from app.schemas.online_search_schemas import ImportFromUrlRequest, BatchImportFromUrlResponse, BatchImportFromUrlRequest
+
 
 # Router für PDF-Verarbeitungs-Endpunkte
 router = APIRouter(
@@ -117,3 +119,74 @@ async def delete_document_endpoint( # Name geändert, um Konflikt zu vermeiden, 
     await db.commit() # Wichtig: Commit nach der Löschoperation
     print(f"LOG_API: Dokument mit ID {document_id} erfolgreich gelöscht.")
     return deleted_document
+
+
+@router.post("/import-from-url", response_model=PdfProcessingResult, status_code=status.HTTP_201_CREATED)
+async def import_pdf_from_url_endpoint(
+    request_data: ImportFromUrlRequest,
+    marker_res: Dict[str, Any] = Depends(get_marker_resources), # Brauchen wir immer noch für den Service
+    db: AsyncSession = Depends(get_async_db)
+):
+    """
+    Nimmt eine PDF-URL und zugehörige Metadaten entgegen, lädt die PDF serverseitig herunter,
+    verarbeitet sie und speichert sie in der Datenbank.
+    """
+    print(f"API_LOG: Empfange Import-Anfrage für URL: {request_data.pdf_url}")
+    
+    service_config = marker_res.get("config", {})
+    artifact_dict = marker_res.get("artifact_dict", {})
+    service = PdfProcessingService(artifact_dict=artifact_dict, config=service_config)
+
+    try:
+        processing_output = await service.import_pdf_from_url_and_store(
+            db=db,
+            request_data=request_data
+        )
+        print(f"API_LOG: Import und Verarbeitung für URL '{request_data.pdf_url}' abgeschlossen.")
+        return processing_output
+    except ValueError as ve: # Spezifische Fehler vom Service (z.B. Download-Fehler)
+        print(f"API_ERROR: Validierungs- oder Logikfehler beim Import von URL '{request_data.pdf_url}': {ve}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve))
+    except Exception as e:
+        print(f"API_ERROR: Unerwarteter Serverfehler beim Import von URL '{request_data.pdf_url}': {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ein interner Serverfehler ist beim Import von URL aufgetreten: {str(e)}"
+        )
+        
+        
+@router.post("/batch-import-from-urls", response_model=BatchImportFromUrlResponse, status_code=status.HTTP_200_OK)
+async def batch_import_pdfs_from_urls_endpoint(
+    request_data: BatchImportFromUrlRequest,
+    marker_res: Dict[str, Any] = Depends(get_marker_resources),
+    db: AsyncSession = Depends(get_async_db)
+):
+    """
+    Nimmt eine Liste von PDF-URLs und zugehörigen Metadaten entgegen,
+    lädt die PDFs serverseitig herunter, verarbeitet sie und speichert sie in der Datenbank.
+    Gibt den Status für jedes versuchte Paper zurück.
+    """
+    print(f"API_LOG: Empfange Batch-Import-Anfrage für {len(request_data.papers)} Paper.")
+    
+    service_config = marker_res.get("config", {})
+    artifact_dict = marker_res.get("artifact_dict", {})
+    service = PdfProcessingService(artifact_dict=artifact_dict, config=service_config)
+
+    try:
+        batch_processing_results = await service.batch_import_pdfs_from_urls(
+            db=db,
+            papers_to_import=request_data.papers
+        )
+        print(f"API_LOG: Batch-Import und Verarbeitung abgeschlossen.")
+        return BatchImportFromUrlResponse(results=batch_processing_results)
+    except Exception as e: # Fängt allgemeine Fehler im Batch-Prozess ab (sollte selten sein, da Fehler pro Item gehandhabt werden)
+        print(f"API_ERROR: Unerwarteter Serverfehler beim Batch-Import: {e}")
+        import traceback
+        traceback.print_exc()
+        # Du könntest hier auch eine Liste von Fehlern zurückgeben, wenn der ganze Batch fehlschlägt
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ein interner Serverfehler ist beim Batch-Import aufgetreten: {str(e)}"
+        )
