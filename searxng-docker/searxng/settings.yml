@@ -1,0 +1,25 @@
+use_default_settings: true
+
+server:
+  # Key ändert Du nach Bedarf
+  secret_key: "test"
+  # Limiter abschalten, weil Private-Instanz
+  limiter: false
+  public_instance: false
+  # Erlaube Host-Header im Docker-Netzwerk
+  allowed_hosts:
+    - "searxng"
+    - "searxng:8080"
+
+# Den JSON-Endpoint aktivieren (wird durch default auch geladen, 
+# aber zur Sicherheit hier nochmal explizit)
+search:
+  formats:
+    - html
+    - json
+
+# Für DOI-Resolver, falls Du wissenschaftliche Paper abrufst
+doi_resolvers:
+  oadoi.org:   'https://oadoi.org/'
+  doi.org:     'https://doi.org/'
+default_doi_resolver: 'oadoi.org'

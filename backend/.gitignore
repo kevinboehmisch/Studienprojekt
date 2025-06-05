@@ -3,3 +3,7 @@
 # dependencies
 __pycache__/
 
+.env
+.env*
+
+extracted_images/
