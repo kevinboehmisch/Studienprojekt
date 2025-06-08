@@ -81,8 +81,9 @@ Paperpilot wurde mit Next.js für das Frontend und FastAPI für das Backend entw
 | **Text Chunking**    | Langchain (RecursiveCharacterTextSplitter)| **Langchain:** Umfassendes Framework zur Entwicklung von LLM-Anwendungen. Der `RecursiveCharacterTextSplitter` ist eine flexible Methode, Texte semantisch sinnvoll und mit konfigurierbarer Größe/Überlappung zu zerlegen. |
 | **Embeddings**       | Google Generative AI / Ollama (nomic-embed-text) | **Google Embeddings (`models/text-embedding-004`):** Liefern qualitativ hochwertige Embeddings über eine API. **Ollama mit `nomic-embed-text`:** Eine starke Open-Source-Alternative für lokale Embeddings, bietet Kontrolle und potenziell Kostenvorteile. Die Flexibilität, zwischen Cloud und Lokal zu wählen, ist vorteilhaft. |
 | **LLM (Generierung/Chat)**| Google Gemini / Ollama (z.B. Llama 3)     | **Google Gemini (`gemini-1.5-flash` oder `gemini-pro`):** Leistungsstarke API-basierte Modelle für komplexe Textgenerierung und Dialogführung. **Ollama:** Ermöglicht den lokalen Einsatz diverser Open-Source LLMs, was für Experimente, Datenschutz und Kostenkontrolle nützlich ist. |
-| **Web-Suche**        | SearXNG (via Docker)                      | Eine datenschutzfreundliche Metasuchmaschine zur Integration von Web-Recherche-Ergebnissen als zusätzliche Informationsquellen.                                   |
-| **Web-Crawling**     | Crawl4AI (via Docker)                     | Ein spezialisiertes Tool zur automatisierten Extraktion von Inhalten von Ziel-Webseiten, um die Wissensbasis des RAG-Systems zu erweitern.                             |
+| **Paper Datenbank API**        | ArXiv API                      | Eine Datenbank für wissenschaftliche Paper und Preprints, um wissenschaftliche Quellen zu finden                                  |
+| **Web-Suche (zukünftig)**        | SearXNG (via Docker)                      | Eine datenschutzfreundliche Metasuchmaschine zur Integration von Web-Recherche-Ergebnissen als zusätzliche Informationsquellen.                                   |
+| **Web-Crawling (zukünftig)**     | Crawl4AI (via Docker)                     | Ein spezialisiertes Tool zur automatisierten Extraktion von Inhalten von Ziel-Webseiten, um die Wissensbasis des RAG-Systems zu erweitern.                             |
 | **Deployment**       | Docker, Docker Compose                    | Standardwerkzeuge für Containerisierung, die eine konsistente Entwicklungsumgebung über verschiedene Systeme hinweg und eine vereinfachte Bereitstellung gewährleisten.      |
 
 ---
@@ -263,7 +264,7 @@ ollama pull llama3.2
     EMBEDDING_DIMENSION=768
 
     # --- Google Embedding Modell Schlüssel und Einstellungen ---
-    GOOGLE_API_KEY="AIzaSyCNxC6IdbCghQZAPn7EWBns3d9V5WCAfO8"
+    GOOGLE_API_KEY="google_api_key"
     GOOGLE_EMBEDDING_MODEL_NAME="models/text-embedding-004"
     GOOGLE_CHAT_MODEL_NAME="gemini-2.0-flash"
 
@@ -313,12 +314,12 @@ Das `docker-compose.yml` im Hauptverzeichnis des Projekts verwaltet folgende Die
 *   **Port (Host):** `5433` (intern `5432`)
 *   **Zugangsdaten:** User `postgres`, Passwort `password`, DB `paperpilot_db` (konfigurierbar in `.env` für die Anwendung).
 
-#### SearXNG (für Web-Suche)
+#### SearXNG (für zukünftige Web-Suche)
 *   **Zweck:** Private und anpassbare Metasuchmaschine.
 *   **Konfiguration:** Über `./searxng-docker/` Verzeichnis und Caddy.
 *   **Zugriff (Standard):** Über Caddy  `http://localhost:8080`.
 
-#### Crawl4AI (für Web-Crawling)
+#### Crawl4AI (für zukünftige Web-Crawling)
 *   **Zweck:** Gezielte Extraktion von Inhalten von Webseiten.
 *   **Konfiguration:** Über Umgebungsvariablen und ggf. gemountete Volumes.
 
