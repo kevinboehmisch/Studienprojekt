@@ -5,7 +5,7 @@ import { useEditor, EditorContent, Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import TextAlign from "@tiptap/extension-text-align";
 import React, { useState, useCallback, useEffect, useRef } from "react";
-import EditorBubbleMenu from "./EditorBubbleMenu";
+import EditorBubbleMenu, { ActivePromptType } from './EditorBubbleMenu';
 import EditorToolbar from "./EditorToolbar";
 import Citation from "./extensions/CitationNode";
 import EditorContextMenu from "./EditorContextMenu";

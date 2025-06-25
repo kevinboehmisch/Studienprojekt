@@ -1,10 +1,10 @@
 # app/db/crud/crud_chunk.py
 import os
 import uuid
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-
+from sqlalchemy.orm import selectinload
 from app.db.models import Chunk # SQLAlchemy Chunk-Modell
 from app.schemas.processing_schemas import TextChunk as TextChunkSchema # Pydantic TextChunk Schema
 
@@ -53,3 +53,29 @@ async def get_chunks_by_document_id(db: AsyncSession, document_id: uuid.UUID) ->
     return result.scalars().all()
 
 # Die Funktion find_similar_chunks bleibt in crud_retrieval.py, da sie eine spezifische Suchlogik ist.
+
+async def get_chunk_by_id(db: AsyncSession, chunk_id: uuid.UUID) -> Optional[Dict[str, Any]]:
+    """
+    Ruft einen einzelnen Chunk anhand seiner ID ab und lädt relevante Dokumentenmetadaten.
+    Gibt ein Dictionary zurück, das dem RetrievedChunk-Schema entspricht.
+    """
+    result = await db.execute(
+        select(Chunk)
+        .options(selectinload(Chunk.document))
+        .filter(Chunk.id == chunk_id)
+    )
+    db_chunk = result.scalar_one_or_none()
+
+    if db_chunk:
+        # Achte darauf, dass die Schlüssel hier genau den Feldern des RetrievedChunk-Schemas im Frontend entsprechen.
+        # RetrievedChunk erwartet: chunk_content, page_number, document_title, document_author, original_filename, distance, publication_year
+        return {
+            "chunk_content": db_chunk.content,
+            "page_number": db_chunk.page_number,
+            "document_title": db_chunk.document.title if db_chunk.document else None,
+            "document_author": db_chunk.document.author if db_chunk.document else None,
+            "original_filename": db_chunk.document.original_filename if db_chunk.document else None,
+            "publication_year": db_chunk.document.publication_year if db_chunk.document else None,
+            "distance": 0.0 # Standardwert, da bei direktem Abruf keine Ähnlichkeitsdistanz berechnet wird.
+        }
+    return None

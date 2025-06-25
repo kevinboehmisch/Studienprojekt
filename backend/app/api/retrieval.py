@@ -1,5 +1,5 @@
 # app/api/retrieval_endpoints.py
-from fastapi import APIRouter, Depends, HTTPException, Query # Query bleibt
+from fastapi import APIRouter, Depends, HTTPException, Path, Query # Query bleibt
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -7,6 +7,14 @@ from app.services.retrieval_service import RetrievalService
 from app.db.session import get_async_db
 from app.schemas.processing_schemas import RetrievedChunk
 # Kein Pydantic-Modell für den Request-Body mehr nötig, wenn alles über Query-Params geht
+
+import uuid # <- uuid hinzugefügt
+
+# ... (deine bestehenden Imports) ...
+
+# Importiere deine CRUD-Funktion für Chunks und das Pydantic-Schema für die Antwort
+from app.db.crud import crud_chunk # <- NEU hinzugefügt
+from app.schemas.processing_schemas import RetrievedChunk 
 
 router = APIRouter(
     prefix="/retrieval",
@@ -52,3 +60,22 @@ async def find_similar_content_via_get( # Name ggf. angepasst für Klarheit
         print(f"ERROR_API_RETRIEVAL (GET): Fehler bei Ähnlichkeitssuche: {e}")
         import traceback; traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Fehler bei der Ähnlichkeitssuche: {str(e)}")
+    
+
+@router.get("/chunks/{chunk_id}", response_model=RetrievedChunk)
+async def get_single_chunk_by_id( # Name angepasst, um Konflikt zu vermeiden
+    chunk_id: uuid.UUID = Path(..., description="Die ID des abzurufenden Chunks (UUID)"),
+    db: AsyncSession = Depends(get_async_db)
+):
+    """
+    Ruft die Details eines spezifischen Text-Chunks anhand seiner ID ab.
+    Gibt den Chunk-Inhalt und die zugehörigen Dokumentenmetadaten zurück.
+    """
+    chunk_data = await crud_chunk.get_chunk_by_id(db, chunk_id=chunk_id)
+    
+    if chunk_data is None:
+        raise HTTPException(status_code=404, detail="Chunk nicht gefunden")
+    
+    # Da crud_chunk.get_chunk_by_id bereits ein Dictionary liefert, das dem RetrievedChunk-Schema entspricht,
+    # können wir es direkt in ein Pydantic-Modell umwandeln.
+    return RetrievedChunk(**chunk_data)
