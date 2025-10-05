@@ -26,7 +26,7 @@ class SimpleGenerateRequest(BaseModel):
     prompt: str = Field(..., min_length=1, description="Der vollständige Prompt für das KI-Modell.")
     # model_name wird hier an das Langchain-Modell übergeben.
     # Beispiele: "gemini-pro", "gemini-1.0-pro", "gemini-1.5-flash-latest"
-    model_name: str = Field("gemini-1.5-flash-latest", description="Google AI Modellname (z.B. gemini-pro, gemini-1.5-flash-latest).")
+    model_name: str = Field("gemini-1.5-flash-001", description="Google AI Modellname (z.B. gemini-pro, gemini-1.5-flash-latest).")
     temperature: float = Field(0.7, ge=0.0, le=1.0, description="Kreativität der Antwort.")
 
 

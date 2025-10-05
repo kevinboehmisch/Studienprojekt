@@ -119,7 +119,7 @@ interface SimpleGenerateResponseFE {
 
 export async function generateSimpleText(
     prompt: string,
-    modelName: string = "gemini-1.5-flash-latest" // Standardmodell
+    modelName: string = "gemini-2.5-flash" // Standardmodell
 ): Promise<string> { // Gibt direkt den generierten Text oder eine Fehlermeldung zurück
     const requestStartTime = Date.now();
     console.log(`FRONTEND_TIMING_SIMPLE_GEN: [${new Date(requestStartTime).toLocaleTimeString()}] Sende Request für simplen Prompt: "${prompt.substring(0, 50)}..."`);
