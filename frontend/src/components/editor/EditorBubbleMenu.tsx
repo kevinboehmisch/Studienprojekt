@@ -50,11 +50,12 @@ const EditorBubbleMenu: React.FC<EditorBubbleMenuProps> = ({ editor }) => {
   const [currentInlinePrompt, setCurrentInlinePrompt] = useState("");
   const [rangeForInsertion, setRangeForInsertion] = useState<{from: number, to: number} | null>(null);
 
-const toggleInlinePrompt = (type: ActivePromptType) => { // Stelle sicher, dass diese Funktion existiert
+// In src/components/editor/EditorBubbleMenu.tsx
+const toggleInlinePrompt = (type: ActivePromptType) => {
     if (!editor) return;
-    // Schließe andere Popups/Prompts, bevor ein neuer geöffnet wird
+
     if (activePrompt !== ActivePromptType.NONE && activePrompt !== type) {
-        closeAllPopups(); // Stellt sicher, dass SourcePopover etc. zu ist
+        closeAllPopups();
     }
 
     if (activePrompt === type) {
@@ -65,14 +66,20 @@ const toggleInlinePrompt = (type: ActivePromptType) => { // Stelle sicher, dass 
       if (type === ActivePromptType.REWRITE) {
         if (selection.empty) {
           alert("Bitte zuerst Text markieren zum Umschreiben.");
-          setActivePrompt(ActivePromptType.NONE); // Verhindere Öffnen, wenn keine Selektion
+          setActivePrompt(ActivePromptType.NONE);
           return;
         }
         const selectedText = editor.state.doc.textBetween(selection.from, selection.to, " ").trim();
-        setCurrentInlinePrompt(`Umschreibung für: "${selectedText.substring(0, 30)}..." (optional verbessern)`);
+        setCurrentInlinePrompt(`Umschreibung für: "${selectedText.substring(0, Math.min(selectedText.length, 30))}..." (optional verbessern)`); // max 30 Zeichen Preview
         // rangeForInsertion wird für Umschreiben nicht direkt hier gesetzt, handleRewriteText nutzt editor.state.selection
       } else if (type === ActivePromptType.GENERATE) {
-        setCurrentInlinePrompt("");
+        // Bei Generierung: Vorbelegung des Prompts mit markiertem Text, falls vorhanden
+        const selectedTextForGenerate = editor.state.doc.textBetween(selection.from, selection.to, " ").trim();
+        if (selectedTextForGenerate) {
+            setCurrentInlinePrompt(`Führe fort zu: "${selectedTextForGenerate.substring(0, Math.min(selectedTextForGenerate.length, 30))}..."`);
+        } else {
+            setCurrentInlinePrompt(""); // Ansonsten leerer Prompt
+        }
         setRangeForInsertion({ from: selection.to, to: selection.to }); // Einfügepunkt am Ende der aktuellen Selektion/Cursor
       }
       setActivePrompt(type);
@@ -281,27 +288,39 @@ const toggleInlinePrompt = (type: ActivePromptType) => { // Stelle sicher, dass 
 
   
 // Funktion zum Umschalten des Inline-Prompts
+// In src/components/editor/EditorBubbleMenu.tsx
 const handleGenerateText = async (userPrompt?: string) => {
   if (!editor) {
-    console.error("[handleGenerateText] Editor nicht initialisiert.");
+    console.error("Editor nicht initialisiert.");
     return;
   }
 
-  closeAllPopups(); // Stellt sicher, dass andere Popups geschlossen sind
+  closeAllPopups();
   setIsGeneratingText(true);
 
-  const NUM_SOURCES_FOR_GENERATION = 3; // Fester Wert
-  const entireEditorContentForAPI = editor.getHTML(); // Gesamter Editor-Inhalt
+  const NUM_SOURCES_FOR_GENERATION = 1;
+  const entireEditorContentForAPI = editor.getHTML();
 
-  // 'effectiveQueryForAPI' wird an das Backend als 'user_prompt' gesendet.
-  // Der 'entireEditorContentForAPI' wird als 'editor_context_html' gesendet.
-  const effectiveQueryForAPI = userPrompt?.trim() || "Schreibe einen passenden wissenschaftlichen Textabschnitt, der den vorherigen Inhalt fortführt oder ergänzt, basierend auf den relevanten Quellen.";
+  let finalUserInstruction = userPrompt?.trim();
+
+  // Wenn kein spezifischer Prompt aus dem Inline-Feld kam, aber Text markiert ist,
+  // nutze den markierten Text als Anweisung.
+  if (!finalUserInstruction && editor.state.selection && !editor.state.selection.empty) {
+      const selectedTextForInstruction = editor.state.doc.textBetween(editor.state.selection.from, editor.state.selection.to, " ").trim();
+      if (selectedTextForInstruction) {
+          finalUserInstruction = `Führe den folgenden Aspekt oder den markierten Text fort: "${selectedTextForInstruction}"`;
+      }
+  }
+
+  // Wenn immer noch keine Anweisung, nutze den Standard-Prompt
+  if (!finalUserInstruction) {
+      finalUserInstruction = "Schreibe einen passenden wissenschaftlichen Textabschnitt, der den vorherigen Inhalt thematisch fortführt oder ergänzt, basierend auf den relevanten Quellen.";
+  }
 
   try {
-    // ANNAHME: generateTextFromQuery wurde angepasst, um editorContextHtml und optionalen userPrompt zu akzeptieren
     const response: GeneratedTextResponseFE = await generateTextFromQuery(
-      entireEditorContentForAPI, // Erster Parameter: Hauptkontext
-      effectiveQueryForAPI,      // Zweiter Parameter: Spezifischer User-Prompt/Anweisung
+      entireEditorContentForAPI,
+      finalUserInstruction,
       NUM_SOURCES_FOR_GENERATION
     );
 
@@ -311,10 +330,8 @@ const handleGenerateText = async (userPrompt?: string) => {
       const citationRegex = /\[ID:([a-f0-9-]+(?:-[a-f0-9]+)*)\]/gi;
       let lastIndex = 0;
       let match;
-      let matchCount = 0;
-
+      
       while ((match = citationRegex.exec(response.generated_text)) !== null) {
-        matchCount++; 
         const plainTextBefore = response.generated_text.substring(lastIndex, match.index);
         if (plainTextBefore) {
           contentToInsert.push(plainTextBefore);
@@ -322,7 +339,13 @@ const handleGenerateText = async (userPrompt?: string) => {
 
         const chunkId = match[1];
         const sourceData = sourceMap.get(chunkId);
-
+        console.log(`[handleGenerateText] Debug: Verarbeite ID: ${chunkId}. SourceData gefunden in Map:`, !!sourceData, sourceData ? sourceData.author : 'N/A');
+        if (!sourceData) {
+            console.warn(`[handleGenerateText] WARNUNG: Quelle für ID ${chunkId} NICHT im response.sources-Array gefunden.`);
+            // Dieser Block wird ausgelöst, wenn sourceData fehlt.
+            // Dann wird das rohe Tag in den Editor eingefügt.
+        }
+    contentToInsert.push(match[0]);
         if (sourceData) {
           const citationAttributes = {
             chunkId: sourceData.chunk_id,
@@ -335,16 +358,17 @@ const handleGenerateText = async (userPrompt?: string) => {
 
           if (editor.schema.nodes.citation) {
             const citationNodeInstance = editor.schema.nodes.citation.create(citationAttributes);
+            console.log(`[handleGenerateText] Node-Erstellung für ${chunkId}. Ergebnis:`, citationNodeInstance);
             if (citationNodeInstance) {
               contentToInsert.push(citationNodeInstance.toJSON());
             } else {
-              contentToInsert.push(match[0]); // Fallback: Rohes Tag
+              contentToInsert.push(match[0]);
             }
           } else {
-            contentToInsert.push(match[0]); // Fallback: Rohes Tag
+            contentToInsert.push(match[0]);
           }
         } else {
-          contentToInsert.push(match[0]); // Fallback: Rohes Tag
+          contentToInsert.push(match[0]);
         }
         lastIndex = citationRegex.lastIndex;
       }
@@ -356,8 +380,21 @@ const handleGenerateText = async (userPrompt?: string) => {
 
       if (contentToInsert.length > 0) {
         let commandChain = editor.chain().focus();
-        const insertPos = rangeForInsertion ? rangeForInsertion.to : editor.state.selection.to;
-        commandChain = commandChain.setTextSelection(insertPos);
+        
+        // HIER IST DIE KORREKTUR:
+        // Sicherstellen, dass die Einfügeposition IMMER ein kollabierter Cursorpunkt ist.
+        // Wenn rangeForInsertion gesetzt ist (d.h. Text war markiert),
+        // setzen wir den Cursor ans ENDE dieser Markierung.
+        // Wenn rangeForInsertion nicht gesetzt ist (z.B. bei einem Rechtsklick ohne Selektion),
+        // wird der Cursor an der aktuellen Selektion des Editors verwendet.
+        const targetInsertionPosition = rangeForInsertion 
+                                        ? rangeForInsertion.to // Am Ende der markierten Range einfügen
+                                        : editor.state.selection.to; // An der aktuellen Cursorposition
+
+        commandChain = commandChain.setTextSelection(targetInsertionPosition);
+
+        // KEIN .deleteSelection() HIER FÜR GENERIEREN
+        // .deleteSelection() wird nur für "Umschreiben" benötigt
 
         for (const item of contentToInsert) {
           commandChain = commandChain.insertContent(item);
@@ -368,12 +405,12 @@ const handleGenerateText = async (userPrompt?: string) => {
       alert("Kein Text von der KI generiert.");
     }
   } catch (error: any) {
-    console.error("[handleGenerateText] Fehler:", error);
+    console.error("Fehler:", error);
     alert(`Fehler bei der Textgenerierung: ${error.message || 'Unbekannt'}`);
   } finally {
     setIsGeneratingText(false);
-    setActivePrompt(ActivePromptType.NONE); // Schließe Inline-Prompt nach Aktion
-    setRangeForInsertion(null);
+    setActivePrompt(ActivePromptType.NONE);
+    setRangeForInsertion(null); // Wichtig: Reset, damit es nicht alte Ranges speichert
   }
 };
 

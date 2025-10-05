@@ -10,24 +10,27 @@ export default function ChatPage() {
   const [outline, setOutline] = useState<OutlineItem[]>([]);
 
   useEffect(() => {
+    // Lade das aktuell aktive Projekt
     const savedConfig = localStorage.getItem('documentConfig');
+    let config = null;
     if (savedConfig) {
       try {
-        const config = JSON.parse(savedConfig);
-        if (config.outline && Array.isArray(config.outline)) {
-          console.log("ChatPage: Loaded outline from localStorage:", config.outline);
-          setOutline(config.outline);
-        } else {
-          console.log("ChatPage: No valid outline in localStorage, initializing empty.");
-          setOutline([]);
-        }
-      } catch (e) {
-        console.error('ChatPage: Fehler beim Laden der Gliederung aus localStorage:', e);
-        setOutline([]); // Fallback auf leere Gliederung bei Fehler
+        config = JSON.parse(savedConfig);
+      } catch (e) {}
+    }
+    // Wenn ein projectId vorhanden ist, lade die spezifische Konfiguration
+    if (config && config.projectId) {
+      const projectConfigRaw = localStorage.getItem(`documentConfig_${config.projectId}`);
+      if (projectConfigRaw) {
+        try {
+          config = JSON.parse(projectConfigRaw);
+        } catch (e) {}
       }
+    }
+    if (config && config.outline && Array.isArray(config.outline)) {
+      setOutline(config.outline);
     } else {
-        console.log("ChatPage: No documentConfig in localStorage, initializing empty outline.");
-        setOutline([]);
+      setOutline([]);
     }
   }, []);
 
